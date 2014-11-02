@@ -1,0 +1,4 @@
+
+Put your preseed keys in this directory.
+
+Please make sure your key name matches your salt id + salt domain
