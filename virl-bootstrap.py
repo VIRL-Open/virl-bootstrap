@@ -80,7 +80,7 @@ while not while_exit:
     if choice == 6:
         subprocess.call(['mkdir', '-p','/etc/salt/pki/minion'])
         subprocess.call(['cp', './master_sign.pub', '/etc/salt/pki/minion'])
-        subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'git', '2014.7'])
+        subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'stable'])
     if choice == 7:
         subprocess.call(['mkdir', '-p','/etc/salt/pki/minion'])
         subprocess.call(['cp', './master_sign.pub', '/etc/salt/pki/minion'])
