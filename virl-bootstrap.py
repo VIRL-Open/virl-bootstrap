@@ -42,7 +42,7 @@ while not while_exit:
     if choice == 1:
         salt_master = raw_input('Salt master [%s] ' % salt_master) or 'salt-master.cisco.com'
     if choice == 2:
-        salt_name = raw_input('Salt name [%s] ' % salt_name) or 'virl'
+        salt_name = raw_input('Salt id [%s] ' % salt_name) or 'virl'
         salt_append_domain = raw_input('Salt domain name [%s] ' % salt_append_domain) or 'virl.info'
     if choice == 3:
         hostname = raw_input('System hostname [%s] ' % hostname) or 'virl'
