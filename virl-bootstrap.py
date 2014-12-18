@@ -91,7 +91,7 @@ while not while_exit:
         subprocess.call(['cp', '-f', '{0}/preseed_keys/minion.pem'.format(cwd), '/etc/salt/pki/minion/minion.pem'])
         subprocess.call(['cp', '-f', '{0}/preseed_keys/minion.pub'.format(cwd), '/etc/salt/pki/minion/minion.pub'])
         subprocess.call(['chmod', '400', '/etc/salt/pki/minion/minion.pem'])
-        subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'git', '2014.7'])
+        subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'stable'])
     if choice == 8:
         subprocess.call(['salt-call', 'test.ping'])
     if choice == 9:
