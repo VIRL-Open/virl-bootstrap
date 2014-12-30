@@ -1,15 +1,15 @@
 virl-bootstrap
 ==============
 
-prerequisites: 
+prerequisites:
 
 The Network Install requires Internet access. If you are unable to access the Internet, do NOT use this procedure.
 
 The VIRL software stack requires five physical or virtual network interfaces - eth0, eth1, eth2, eth3 and eth4. Configuration need only be applied to eth0, as your primary network access interface. This should be configured with an IP address and default gateway such that you have network access and MUST have Internet access.
 
-If you do not have five physical interfaces, attention must be paid when in STEP 10 below... 
+If you do not have five physical interfaces, attention must be paid when in STEP 10 below...
 
-install Ubuntu 14.4.1 LTS on your server, creating a default user 'virl' 
+install Ubuntu 14.4.1 LTS on your server, creating a default user 'virl'
 
 Login into your VIRL system and enter the following commands
 
@@ -25,7 +25,7 @@ reboot
 
 On reboot, login as virl. Enter the following commands
 
-git clone https://github.com/Snergster/virl-bootstrap.git
+git clone https://github.com/VIRL-Open/virl-bootstrap.git
 
 cd virl-bootstrap
 
@@ -39,7 +39,7 @@ You are now presented with a menu. Proceed through the steps sequentially.
 
 NOTE - if you abort the menu sequence and restart, you MUST re-enter the information into the menu fields once more.
 
-Step 1 - Change salt master from salt-master.cisco.com 
+Step 1 - Change salt master from salt-master.cisco.com
 
 - You may have received instructions to use a specific 'salt master', if so, enter the salt master hostname here. If you enter this step, you MUST enter a value. The fields must NOT be blank!
 
@@ -88,7 +88,7 @@ Step 10 - Edit /etc/virl.ini
 -- using dhcp on the public port?
 -- Static IP, public_network, public_netmask, public_gateway
 -- ntp_server
--- first nameserver 
+-- first nameserver
 -- second nameserver
 -- l2_network (CIDR format),l2_mask, l2_network_gateway, l2_start_address, l2_end_address, l2_address (address/netmask)
 -- l2_network2 (CIDR format), l2_mask2, l2_network_gateway2, l2_start_address2, l2_end_address2, l2_address2 (address/netmask)
@@ -103,18 +103,18 @@ IF YOU DO NOT HAVE 5 PHYSICAL INTERFACES ON YOUR SERVER... determine the number 
 In the /etc/virl.ini, you must map the interfaces to 'dummy' interfaces as per the field settings below. The 'dummy_int' field MUST be set to 'True'
 
  DEFAULT l2_port: eth1
- MAPPED l2_port: dummy0 
+ MAPPED l2_port: dummy0
  DEFAULT l2_port2: eth2
- MAPPED l2_port2: dummy1 
+ MAPPED l2_port2: dummy1
  DEFAULT l3_port: eth1
- MAPPED l3_port: dummy2 
+ MAPPED l3_port: dummy2
  DEFAULT internalnet_port: eth4
- MAPPED internalnet_port: dummy3 
+ MAPPED internalnet_port: dummy3
  DEFAULT dummy_int: False
- 
- ENABLED dummy_int: True 
 
-The example above maps four physical interfaces to four dummy interfaces. This may NOT be required in your deployment scenario. 
+ ENABLED dummy_int: True
+
+The example above maps four physical interfaces to four dummy interfaces. This may NOT be required in your deployment scenario.
 
 Now continue with the installation procedure below...
 
