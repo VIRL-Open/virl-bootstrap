@@ -81,6 +81,7 @@ while not while_exit:
         subprocess.call(['mkdir', '-p','/etc/salt/pki/minion'])
         subprocess.call(['cp', './master_sign.pub', '/etc/salt/pki/minion'])
         if salt_master == 'masterless':
+            subprocess.call(['git', 'clone', 'https://github.com/Snergster/virl-salt.git', '/srv/salt'])
             subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-X', 'stable'])
         else:
             subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'stable'])
@@ -95,6 +96,7 @@ while not while_exit:
         subprocess.call(['cp', '-f', '{0}/preseed_keys/minion.pub'.format(cwd), '/etc/salt/pki/minion/minion.pub'])
         subprocess.call(['chmod', '400', '/etc/salt/pki/minion/minion.pem'])
         if salt_master == 'masterless':
+            subprocess.call(['git', 'clone', 'https://github.com/Snergster/virl-salt.git', '/srv/salt'])
             subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-X', 'stable'])
         else:
             subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'stable'])
