@@ -104,7 +104,7 @@ address_l2_port2 = True
 flat2_dns1 = safeparser.get('DEFAULT', 'first_flat2_nameserver', fallback='8.8.8.8')
 flat2_dns2 = safeparser.get('DEFAULT', 'second_flat2_nameserver', fallback='8.8.4.4')
 
-
+masterless = safeparser.getboolean('DEFAULT', 'salt_masterless', fallback=False)
 RAMDISK = safeparser.getboolean('DEFAULT', 'ramdisk', fallback=False)
 ank = safeparser.get('DEFAULT', 'ank', fallback='19401')
 uwm_port = safeparser.get('DEFAULT', 'virl_user_management', fallback='19400')
@@ -665,8 +665,6 @@ def desktop_icons():
             if not path.exists(autostart):
                 makedirs('/home/virl/.config/autostart')
             subprocess.call(['sudo', 'chown', '-R', 'virl:virl', '/home/virl/.config'])
-
-
             desktop = '/home/virl/Desktop'
             if not path.exists(desktop):
                 mkdir('/home/virl/Desktop')
@@ -724,15 +722,6 @@ def domodification(ospassword, mypassword, ks_token):
         # replace(BASEDIR + 'install_scripts/alter.sh', 'mypassql', mypassword)
         replace(BASEDIR + 'install_scripts/bashrc', 'ospassword', ospassword)
         replace(BASEDIR + 'install_scripts/bashrc', 'kstoken', ks_token)
-        # replace(BASEDIR + 'install_scripts/openstack', 'ospassword', ospassword)
-        # replace(BASEDIR + 'install_scripts/do.sh', 'kstoken', ks_token)
-        # replace(BASEDIR + 'install_scripts/alter.sh', 'kstoken', ks_token)
-        # replace(BASEDIR + 'install_scripts/openstack', 'kstoken', ks_token)
-        # replace(BASEDIR + 'install_scripts/extra', 'WHICHROLE', virl_type)
-        # if cml:
-        #     replace(BASEDIR + 'install_scripts/extra', 'WHICHRELEASE', 'cml')
-        # else:
-        #     replace(BASEDIR + 'install_scripts/extra', 'WHICHRELEASE', 'virl')
         subprocess.call(['sed', '-i', ('s/--port .*/--port {0}"/g'.format(ank)),
                          (BASEDIR + 'install_scripts/init.d/ank-webserver.init')])
         copy((BASEDIR + 'install_scripts/bashrc'), ( '/home/virl/.bashrc'))
@@ -742,7 +731,10 @@ def domodification(ospassword, mypassword, ks_token):
 
 def call_salt(slsfile):
     print 'Please be patient file {slsfile} is running'.format(slsfile=slsfile)
-    subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', slsfile])
+    if masterless:
+        subprocess.call(['sudo', 'salt-call', '--local', '-l', 'quiet', 'state.sls', slsfile])
+    else:
+        subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', slsfile])
     sleep(5)
 
 if __name__ == "__main__":
@@ -765,7 +757,8 @@ if __name__ == "__main__":
     if varg['first']:
         for _each in ['common.virl', 'virl.basics']:
             call_salt(_each)
-        subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'saltutil.sync_all'])
+        if not masterless:
+            subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'saltutil.sync_all'])
         building_salt_all()
         call_salt('virl.openrc')
         print 'Please validate the contents of /etc/network/interfaces before rebooting!'
@@ -792,7 +785,6 @@ if __name__ == "__main__":
     if varg['third'] or varg['all']:
         if cinder:
             call_salt('openstack.cinder.install')
-            # subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', 'cinder-install'])
             if cinder_file:
                 subprocess.call(['sudo', '/bin/dd', 'if=/dev/zero', 'of={0}'.format(cinder_loc), 'bs=1M',
                                  'count={0}'.format(cinder_size)])
@@ -808,8 +800,7 @@ if __name__ == "__main__":
 
         if horizon:
             call_salt('openstack.dash')
-            # subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', 'openstack.dash'])
-            # sleep(5)
+
 
         admin_tenid = (subprocess.check_output(['/usr/bin/keystone --os-tenant-name admin --os-username admin'
                                             ' --os-password {ospassword} --os-auth-url=http://localhost:5000/v2.0'
@@ -820,7 +811,11 @@ if __name__ == "__main__":
         create_basic_networks()
         apache_write()
         if vnc:
-            subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', 'common.tightvncserver'])
+            if masterless:
+                call_salt('common.tightvncserver')
+            else:
+                subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', 'common.tightvncserver'])
+
             if not vnc_passwd == 'letmein':
                 set_vnc_password(vnc_passwd)
             sleep(5)
@@ -834,9 +829,13 @@ if __name__ == "__main__":
         call_salt('openstack.neutron.changes')
 
     if varg['fourth'] or varg['all']:
-        subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', 'virl.std'])
-        sleep(5)
-        subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', 'virl.ank'])
+        if masterless:
+            call_salt('virl.std')
+            call_salt('virl.ank')
+        else:
+            subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', 'virl.std'])
+            sleep(5)
+            subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', 'virl.ank'])
         if guest_account:
             call_salt('guest')
         # std_install()
@@ -904,18 +903,13 @@ if __name__ == "__main__":
         q_delete_list = (subprocess.check_output( ['neutron --os-username admin --os-password password'
                                                    ' --os-tenant-name admin'
                                                    ' --os-auth-url=http://localhost:5000/v2.0 agent-list'
-                                                   ' | grep -w "virl" | cut -d "|" -f2'],
-                                                   shell=True)).split()
+                                                   ' | grep -w "virl" | cut -d "|" -f2'], shell=True)).split()
         for _qeach in q_delete_list:
             subprocess.call(qcall + ['agent-delete', '{0}'.format(_qeach)])
 
         for _keach in k_delete_list:
             subprocess.call(kcall + ['endpoint-delete', '{0}'.format(_keach)])
         subprocess.call(['sudo', 'salt-call', '--local', '-l', 'quiet', 'state.sls', 'host'])
-        # subprocess.call(['sudo', 'service', 'virl-uwm', 'stop'])
-        # subprocess.call(['sudo', 'service', 'virl-std', 'stop'])
-        # subprocess.call(['sudo', 'pip','uninstall', 'VIRL-CORE', '-y'])
-        # subprocess.call(['sudo', 'rm', '-rf', '/var/local/virl'])
         building_salt_all()
         sleep(5)
         call_salt('virl.openrc')
@@ -924,8 +918,6 @@ if __name__ == "__main__":
     if varg['renumber']:
         subprocess.call(['sudo', 'service', 'virl-uwm', 'stop'])
         subprocess.call(['sudo', 'service', 'virl-std', 'stop'])
-        subprocess.call(['sudo', 'pip','uninstall', 'VIRL-CORE', '-y'])
-        subprocess.call(['sudo', 'rm', '-rf', '/var/local/virl'])
         for _each in ['openstack.password.change','openstack.rabbitmq','openstack.keystone.install','openstack.keystone.setup','openstack.keystone.setup',
                       'openstack.keystone.endpoint','openstack.osclients']:
             call_salt(_each)
@@ -935,7 +927,7 @@ if __name__ == "__main__":
             call_salt(_next)
         create_basic_networks()
         if guest_account:
-            call_salt('guest')
+            call_salt('virl.guest')
         User_Creator(user_list, user_list_limited)
         subprocess.call(['rm', '/home/virl/Desktop/Edit-settings.desktop'])
         subprocess.call(['rm', '/home/virl/Desktop/Reboot2.desktop'])

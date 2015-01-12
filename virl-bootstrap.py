@@ -80,7 +80,10 @@ while not while_exit:
     if choice == 6:
         subprocess.call(['mkdir', '-p','/etc/salt/pki/minion'])
         subprocess.call(['cp', './master_sign.pub', '/etc/salt/pki/minion'])
-        subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'stable'])
+        if salt_master == 'masterless':
+            subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-X', 'stable'])
+        else:
+            subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'stable'])
     if choice == 7:
         subprocess.call(['mkdir', '-p','/etc/salt/pki/minion'])
         subprocess.call(['cp', './master_sign.pub', '/etc/salt/pki/minion'])
@@ -91,11 +94,20 @@ while not while_exit:
         subprocess.call(['cp', '-f', '{0}/preseed_keys/minion.pem'.format(cwd), '/etc/salt/pki/minion/minion.pem'])
         subprocess.call(['cp', '-f', '{0}/preseed_keys/minion.pub'.format(cwd), '/etc/salt/pki/minion/minion.pub'])
         subprocess.call(['chmod', '400', '/etc/salt/pki/minion/minion.pem'])
-        subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'stable'])
+        if salt_master == 'masterless':
+            subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-X', 'stable'])
+        else:
+            subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'stable'])
     if choice == 8:
-        subprocess.call(['salt-call', 'test.ping'])
+        if salt_master == 'masterless':
+            print "Running in masterless mode skipping ping."
+        else:
+            subprocess.call(['salt-call', 'test.ping'])
     if choice == 9:
-        subprocess.call(['salt-call', 'state.sls', 'zero'])
+        if salt_master == 'masterless':
+            subprocess.call(['salt-call', '--local', 'state.sls', 'zero'])
+        else:
+            subprocess.call(['salt-call', 'state.sls', 'zero'])
     if choice == 10:
         if not path.exists('/etc/virl.ini'):
             subprocess.call(['cp', './vsettings.ini', '/etc/virl.ini'])
@@ -105,6 +117,9 @@ while not while_exit:
                          'salt_id', salt_name])
         subprocess.call(['crudini', '--set','/etc/virl.ini', 'DEFAULT',
                          'salt_domain', salt_append_domain])
+        if salt_master == 'masterless':
+            subprocess.call(['crudini', '--set','/etc/virl.ini', 'DEFAULT',
+                         'salt_masterless', 'true'])
         if not proxy == 'None':
             subprocess.call(['crudini', '--set','/etc/virl.ini', 'DEFAULT',
                          'proxy', 'True'])
