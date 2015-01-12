@@ -56,11 +56,14 @@ while not while_exit:
             extra.write("""master: [{salt_master}]\n""".format(salt_master=salt_master))
             extra.write("""id: {salt_name}\n""".format(salt_name=salt_name))
             extra.write("""append_domain: {salt_append_domain}\n""".format(salt_append_domain=salt_append_domain))
-            if len(salt_master.split(',')) >= 2:
-              extra.write("""master_type: failover \n""")
-            extra.write("""verify_master_pubkey_sign: True \n""")
-            extra.write("""master_shuffle: True \n""")
-            extra.write("""master_alive_interval: 180 \n""")
+            if salt_master == 'masterless':
+                extra.write("""file_client: local \n""")
+            else:
+                if len(salt_master.split(',')) >= 2:
+                  extra.write("""master_type: failover \n""")
+                extra.write("""verify_master_pubkey_sign: True \n""")
+                extra.write("""master_shuffle: True \n""")
+                extra.write("""master_alive_interval: 180 \n""")
             ##TODO waiting for salt to put this back in
             # extra.write("""grains_dirs:\n""")
             # extra.write("""  - /etc/salt/virl\n""")
