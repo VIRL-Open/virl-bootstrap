@@ -57,7 +57,16 @@ while not while_exit:
             extra.write("""id: {salt_name}\n""".format(salt_name=salt_name))
             extra.write("""append_domain: {salt_append_domain}\n""".format(salt_append_domain=salt_append_domain))
             if salt_master == 'masterless':
-                extra.write("""file_client: local \n""")
+                extra.write("""file_client: local
+
+fileserver_backend:
+  - git
+  - roots
+
+gitfs_provider: Dulwich
+
+gitfs_remotes:
+  - https://github.com/Snergster/virl-salt.git\n""")
             else:
                 if len(salt_master.split(',')) >= 2:
                   extra.write("""master_type: failover \n""")

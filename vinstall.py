@@ -5,7 +5,7 @@
 """virl install.
 
 Usage:
-  foo.py zero | first | second | third | fourth | salt | test | iso | wrap | desktop | rehost | renumber | compute | all | images | password | vmm | routervms | users | vinstall | host | mini
+  foo.py zero | first | second | third | fourth | salt | test | test1 | iso | wrap | desktop | rehost | renumber | compute | all | images | password | vmm | routervms | users | vinstall | host | mini
 
 Options:
   --version             shows program's version number and exit
@@ -312,7 +312,7 @@ def alter_virlcfg():
 
 def building_salt_extra():
     with open(("/tmp/extra"), "w") as extra:
-        if not salt_master == 'none' or vagrant_pre_fourth:
+        if not salt_master == 'masterless' or vagrant_pre_fourth:
             extra.write("""master: [{salt_master}]\n""".format(salt_master=salt_master))
             # for each in salt_master.split(','):
             #     extra.write("""  - {each}\n""".format(each=each))
@@ -323,7 +323,17 @@ def building_salt_extra():
             extra.write("""master_shuffle: True \n""")
             extra.write("""master_alive_interval: 180 \n""")
         else:
-            extra.write("""file_client: local\n""")
+            extra.write("""file_client: local
+
+fileserver_backend:
+  - git
+  - roots
+
+gitfs_provider: Dulwich
+
+gitfs_remotes:
+  - https://github.com/Snergster/virl-salt.git\n""")
+
         extra.write("""id: {salt_id}\n""".format(salt_id=salt_id))
         extra.write("""append_domain: {salt_domain}\n""".format(salt_domain=salt_domain))
     subprocess.call(['sudo', 'cp', '-f', ('/tmp/extra'), '/etc/salt/minion.d/extra.conf'])
@@ -355,10 +365,9 @@ keystone.password: {ospassword}
 keystone.tenant: admin
 keystone.tenant_id: {tenid}
 keystone.auth_url: 'http://127.0.0.1:5000/v2.0/'
-keystone.token: {kstoken}
 mysql.user: root
 mysql.pass: {mypass}\n""".format(ospassword=ospassword, kstoken=ks_token, tenid=admin_tenid, mypass=mypassword))
-
+#removed keystone.token: {kstoken} from above
     if path.exists('/usr/bin/salt-call'):
         with open(("/tmp/foo"), "w") as salt_grain:
             salt_grain.write("""{""")
@@ -394,7 +403,10 @@ mysql.pass: {mypass}\n""".format(ospassword=ospassword, kstoken=ks_token, tenid=
             grains.write("""  neutron_extnet_id: {neutid}\n""".format(neutid=neutron_extnet_id))
         subprocess.call(['sudo', 'cp', '-f', ('/tmp/grains'), '/etc/salt'])
     subprocess.call(['sudo', 'cp', '-f', ('/tmp/openstack'), '/etc/salt/minion.d/openstack.conf'])
-    subprocess.call(['sudo', 'service', 'salt-minion', 'restart'])
+    if not masterless:
+        subprocess.call(['sudo', 'service', 'salt-minion', 'restart'])
+    else:
+        subprocess.call(['sudo', 'service', 'salt-minion', 'stop'])
 
 
 def create_basic_networks():
@@ -842,6 +854,42 @@ if __name__ == "__main__":
         User_Creator(user_list, user_list_limited)
         print ('You need to restart now')
     if varg['test']:
+        subprocess.call(['sudo', 'service', 'virl-uwm', 'stop'])
+        subprocess.call(['sudo', 'service', 'virl-std', 'stop'])
+        for _each in ['openstack.renum1']:
+            call_salt(_each)
+        building_salt_all()
+        sleep(5)
+        for _next in ['openstack.renum2']:
+            call_salt(_next)
+        create_basic_networks()
+        if guest_account:
+            call_salt('virl.guest')
+        User_Creator(user_list, user_list_limited)
+        subprocess.call(['rm', '/home/virl/Desktop/Edit-settings.desktop'])
+        subprocess.call(['rm', '/home/virl/Desktop/Reboot2.desktop'])
+        subprocess.call(['rm', '/home/virl/Desktop/VIRL-rehost.desktop'])
+        subprocess.call(['rm', '/home/virl/Desktop/VIRL-renumber.desktop'])
+        subprocess.call(['rm', '/home/virl/Desktop/README.desktop'])
+        print ('You need to restart now')
+        print 'testing'
+    if varg['test1']:
+        subprocess.call(['sudo', 'service', 'virl-uwm', 'stop'])
+        subprocess.call(['sudo', 'service', 'virl-std', 'stop'])
+        for _each in ['openstack.renum3']:
+            call_salt(_each)
+        building_salt_all()
+        sleep(5)
+        create_basic_networks()
+        if guest_account:
+            call_salt('virl.guest')
+        User_Creator(user_list, user_list_limited)
+        subprocess.call(['rm', '/home/virl/Desktop/Edit-settings.desktop'])
+        subprocess.call(['rm', '/home/virl/Desktop/Reboot2.desktop'])
+        subprocess.call(['rm', '/home/virl/Desktop/VIRL-rehost.desktop'])
+        subprocess.call(['rm', '/home/virl/Desktop/VIRL-renumber.desktop'])
+        subprocess.call(['rm', '/home/virl/Desktop/README.desktop'])
+        print ('You need to restart now')
         print 'testing'
     if varg['compute']:
         if not controller:
@@ -854,17 +902,6 @@ if __name__ == "__main__":
         if onedev:
             subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', 'onepk-external'])
             sleep(5)
-    # if varg['rehost1']:
-    #     '''rehost resets ip addresses of the host itself, resets the clock to deal with drift
-    #
-    #     '''
-    #     building_salt_all()
-    #     sleep(5)
-    #     print "please wait - this may take 30 minutes to complete"
-    #     #call_salt('host')
-    #     #call_salt('ntp')
-    #     subprocess.call(['sudo', 'salt-call', '--local', '-l', 'quiet', 'state.sls', 'host'])
-    #     subprocess.call(['sudo', 'salt-call', '--local', '-l', 'quiet', 'state.sls', 'ntp'])
     if varg['rehost']:
         qcall = ['neutron', '--os-tenant-name', 'admin', '--os-username', 'admin', '--os-password',
                  'password', '--os-auth-url=http://localhost:5000/v2.0']
@@ -909,7 +946,7 @@ if __name__ == "__main__":
 
         for _keach in k_delete_list:
             subprocess.call(kcall + ['endpoint-delete', '{0}'.format(_keach)])
-        subprocess.call(['sudo', 'salt-call', '--local', '-l', 'quiet', 'state.sls', 'host'])
+        subprocess.call(['sudo', 'salt-call', '--local', '-l', 'quiet', 'state.sls', 'virl.host'])
         building_salt_all()
         sleep(5)
         call_salt('virl.openrc')
@@ -922,6 +959,7 @@ if __name__ == "__main__":
                       'openstack.keystone.endpoint','openstack.osclients']:
             call_salt(_each)
         building_salt_all()
+        sleep(5)
         for _next in ['openstack.glance','openstack.neutron.install','openstack.cinder.install',
                       'openstack.dash','openstack.nova.install','openstack.neutron.changes','virl.std','virl.ank']:
             call_salt(_next)
@@ -937,7 +975,7 @@ if __name__ == "__main__":
         print ('You need to restart now')
         sleep(30)
     if varg['host']:
-        call_salt('host')
+        call_salt('virl.host')
     if varg['routervms']:
         call_salt('virl.routervms')
     if varg['images']:
