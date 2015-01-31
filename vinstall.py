@@ -365,9 +365,9 @@ keystone.password: {ospassword}
 keystone.tenant: admin
 keystone.tenant_id: {tenid}
 keystone.auth_url: 'http://127.0.0.1:5000/v2.0/'
+keystone.token: {kstoken}
 mysql.user: root
 mysql.pass: {mypass}\n""".format(ospassword=ospassword, kstoken=ks_token, tenid=admin_tenid, mypass=mypassword))
-#removed keystone.token: {kstoken} from above
     if path.exists('/usr/bin/salt-call'):
         with open(("/tmp/foo"), "w") as salt_grain:
             salt_grain.write("""{""")
