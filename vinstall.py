@@ -312,7 +312,7 @@ def alter_virlcfg():
 
 def building_salt_extra():
     with open(("/tmp/extra"), "w") as extra:
-        if not salt_master == 'masterless' or vagrant_pre_fourth:
+        if not masterless or vagrant_pre_fourth:
             extra.write("""master: [{salt_master}]\n""".format(salt_master=salt_master))
             # for each in salt_master.split(','):
             #     extra.write("""  - {each}\n""".format(each=each))
@@ -334,9 +334,9 @@ gitfs_provider: Dulwich
 gitfs_remotes:
   - https://github.com/Snergster/virl-salt.git\n""")
 
-        extra.write("""id: {salt_id}\n""".format(salt_id=salt_id))
+        extra.write("""id: '{salt_id}'\n""".format(salt_id=salt_id))
         extra.write("""append_domain: {salt_domain}\n""".format(salt_domain=salt_domain))
-    subprocess.call(['sudo', 'cp', '-f', ('/tmp/extra'), '/etc/salt/minion.d/extra.conf'])
+    subprocess.call(['sudo', 'mv', '-f', ('/tmp/extra'), '/etc/salt/minion.d/extra.conf'])
 
 def building_salt_all():
     if not path.exists('/etc/salt/virl'):
@@ -401,8 +401,8 @@ mysql.pass: {mypass}\n""".format(ospassword=ospassword, kstoken=ks_token, tenid=
             for name, value in safeparser.items('DEFAULT'):
                 grains.write("""  {name}: {value}\n""".format(name=name, value=value))
             grains.write("""  neutron_extnet_id: {neutid}\n""".format(neutid=neutron_extnet_id))
-        subprocess.call(['sudo', 'cp', '-f', ('/tmp/grains'), '/etc/salt'])
-    subprocess.call(['sudo', 'cp', '-f', ('/tmp/openstack'), '/etc/salt/minion.d/openstack.conf'])
+        subprocess.call(['sudo', 'mv', '-f', ('/tmp/grains'), '/etc/salt'])
+    subprocess.call(['sudo', 'mv', '-f', ('/tmp/openstack'), '/etc/salt/minion.d/openstack.conf'])
     if not masterless:
         subprocess.call(['sudo', 'service', 'salt-minion', 'restart'])
     else:
@@ -933,7 +933,10 @@ if __name__ == "__main__":
                         '--execute=delete from compute_nodes'])
         subprocess.call(['sudo', 'mysql', '-uroot', '-ppassword', 'nova',
                          '--execute=delete from services'])
-        subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'virl_core.project_absent', 'name=guest'])
+        if masterless:
+            subprocess.call(['sudo', 'salt-call', '--local', '-l', 'quiet', 'virl_core.project_absent', 'name=guest'])
+        else:
+            subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'virl_core.project_absent', 'name=guest'])
         subprocess.call(qcall + ['subnet-delete', 'flat'])
         subprocess.call(qcall + ['subnet-delete', 'flat1'])
         subprocess.call(qcall + ['subnet-delete', 'ext-net'])
@@ -946,6 +949,11 @@ if __name__ == "__main__":
 
         for _keach in k_delete_list:
             subprocess.call(kcall + ['endpoint-delete', '{0}'.format(_keach)])
+        #BS for really old systems
+        if not (path.exists('/srv/salt/virl/host.sls')) and (path.exists('/srv/salt/host.sls')):
+            subprocess.call(['sudo', 'cp', '/srv/salt/host.sls', '/srv/salt/virl/host.sls'])
+        if not (path.exists('/srv/salt/virl/ntp.sls')) and (path.exists('/srv/salt/ntp.sls')):
+            subprocess.call(['sudo', 'cp', '/srv/salt/ntp.sls', '/srv/salt/virl/ntp.sls'])
         subprocess.call(['sudo', 'salt-call', '--local', '-l', 'quiet', 'state.sls', 'virl.host'])
         building_salt_all()
         sleep(5)
