@@ -5,7 +5,7 @@
 """virl install.
 
 Usage:
-  vinstall.py zero | first | second | third | fourth | salt | test | test1 | iso | wrap | desktop | rehost | renumber | compute | all | upgrade | password | vmm | routervms | users | vinstall | host | mini | highstate
+  vinstall.py zero | first | second | third | fourth | salt | test | test1 | iso | bridge | desktop | rehost | renumber | compute | all | upgrade | nova | vmm | routervms | users | vinstall | host | mini | highstate
 
 Options:
   --version             shows program's version number and exit
@@ -266,28 +266,44 @@ def replace(file_path, pattern, subst):
 def building_salt_extra():
     with open(("/tmp/extra"), "w") as extra:
         if not masterless or vagrant_pre_fourth:
-            extra.write("""master: [{salt_master}]\n""".format(salt_master=salt_master))
-            # for each in salt_master.split(','):
-            #     extra.write("""  - {each}\n""".format(each=each))
             if len(salt_master.split(',')) >= 2:
+                extra.write("""master: [{salt_master}]\n""".format(salt_master=salt_master))
                 extra.write("""master_type: failover \n""")
+                extra.write("""master_shuffle: True \n""")
+                extra.write("""random_master: True \n""")
+            else:
+                extra.write("""master: {salt_master}\n""".format(salt_master=salt_master))
+
             extra.write("""verify_master_pubkey_sign: True \n""")
             extra.write("""auth_timeout: 15 \n""")
-            extra.write("""master_shuffle: True \n""")
-            extra.write("""random_master: True \n""")
             extra.write("""master_alive_interval: 180 \n""")
         else:
-            extra.write("""file_client: local
+            if path.exists('/usr/local/lib/python2.7/dist-packages/pygit2'):
+                extra.write("""gitfs_provider: pygit2\n""")
+                extra.write("""file_client: local
 
 fileserver_backend:
   - git
   - roots
 
-gitfs_provider: Dulwich
+gitfs_remotes:
+  - https://github.com/Snergster/virl-salt.git\n""")
+            elif path.exists('/usr/local/lib/python2.7/dist-packages/dulwich'):
+                extra.write("""gitfs_provider: dulwich\n""")
+                extra.write("""file_client: local
+
+fileserver_backend:
+  - git
+  - roots
 
 gitfs_remotes:
   - https://github.com/Snergster/virl-salt.git\n""")
+            else:
+                extra.write("""file_client: local
 
+fileserver_backend:
+  - roots\n""")
+        extra.write("""log_level: quiet \n""")
         extra.write("""id: '{salt_id}'\n""".format(salt_id=salt_id))
         extra.write("""append_domain: {salt_domain}\n""".format(salt_domain=salt_domain))
     subprocess.call(['sudo', 'mv', '-f', ('/tmp/extra'), '/etc/salt/minion.d/extra.conf'])
@@ -342,6 +358,7 @@ virl:
         with open(("/tmp/foo"), "w") as salt_grain:
             salt_grain.write("""{""")
             for key, value in (safeparser.items('DEFAULT')):
+                if key == 'domain': salt_grain.write(""" 'domain_name': '{value}',""".format(key=key,value=value))
                 if value.lower() == 'true' or value.lower() == 'false':
                     salt_grain.write(""" '{key}': {value} ,""".format(key=key,value=value))
                 else:
@@ -681,61 +698,7 @@ if __name__ == "__main__":
         create_basic_networks()
         print ('You need to restart now')
     if varg['test1']:
-        call_salt('common.pip')
-        call_salt('common.salt-minion')
-        building_salt_all()
-        subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.highstate'])
-        call_salt('common.distuptodate')
-        call_salt('openstack')
-        call_salt('openstack.setup')
-        call_salt('openstack.stop')
-        call_salt('virl.basics')
-        call_salt('openstack.rabbitmq')
-        call_salt('openstack.start')
-        call_salt('openstack.rabbitmq')
-        call_salt('openstack.restart')
-        call_salt('virl.std')
-        call_salt('virl.ank')
-        if masterless:
-            subprocess.call(['sudo', 'salt-call', '--local', '-l', 'quiet', 'virl_core.project_absent', 'name=guest'])
-        else:
-            subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'virl_core.project_absent', 'name=guest'])
-        call_salt('openstack.neutron.delete-basic')
-        nova_service_list = ["nova-compute","nova-cert","nova-consoleauth","nova-scheduler","nova-conductor"]
-        print ('Deleting Nova services for old hostnames')
-        pmypassword = '-p' + mypassword
-        subprocess.call(['sudo', 'mysql', '-uroot', pmypassword , 'nova',
-                        '--execute=delete from compute_nodes'])
-        subprocess.call(['sudo', 'mysql', '-uroot', pmypassword , 'nova',
-                         '--execute=delete from services'])
-
-        if not (path.exists('/srv/salt/virl/host.sls')) and (path.exists('/srv/salt/host.sls')):
-            subprocess.call(['sudo', 'cp', '/srv/salt/host.sls', '/srv/salt/virl/host.sls'])
-        if not (path.exists('/srv/salt/virl/ntp.sls')) and (path.exists('/srv/salt/ntp.sls')):
-            subprocess.call(['sudo', 'cp', '/srv/salt/ntp.sls', '/srv/salt/virl/ntp.sls'])
-        subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', 'openstack.restart'])
-        qcall = ['neutron', '--os-tenant-name', 'admin', '--os-username', 'admin', '--os-password',
-                 ospassword, '--os-auth-url=http://localhost:5000/v2.0']
-        nmcall = ['nova-manage', '--os-tenant-name', 'admin', '--os-username', 'admin', '--os-password',
-                 ospassword, '--os-auth-url=http://localhost:5000/v2.0']
-        q_delete_list = (subprocess.check_output( ['neutron --os-username admin --os-password {ospassword} --os-tenant-name admin --os-auth-url=http://localhost:5000/v2.0 agent-list | grep -v "{hostname}" |grep -v "region" | grep -v "+-" | cut -d "|" -f2'.format(ospassword=ospassword,hostname=hostname)], shell=True)).split()
-        print q_delete_list
-        for _qeach in q_delete_list:
-            subprocess.call(qcall + ['agent-delete', '{0}'.format(_qeach)])
-        # for _keach in k_delete_list:
-        #     subprocess.call(kcall + ['endpoint-delete', '{0}'.format(_keach)])
-        call_salt('openstack.setup')
-        if guest_account:
-            call_salt('virl.guest')
-        novaclient = '/home/virl/.novaclient'
-        if path.exists(novaclient):
-            subprocess.call(['sudo', 'chown', '-R', 'virl:virl', '/home/virl/.novaclient'])
-        if desktop:
-            subprocess.call(['rm', '-f', '/home/virl/Desktop/Edit-settings.desktop'])
-            subprocess.call(['rm', '-f', '/home/virl/Desktop/Reboot2.desktop'])
-            subprocess.call(['rm', '-f', '/home/virl/Desktop/VIRL-rehost.desktop'])
-            subprocess.call(['rm', '-f', '/home/virl/Desktop/VIRL-renumber.desktop'])
-            subprocess.call(['rm', '-f', '/home/virl/Desktop/README.desktop'])
+      print 'nothing to see here'
     if desktop:
         if varg['desktop']:
             call_salt('virl.desktop')
@@ -776,16 +739,7 @@ if __name__ == "__main__":
         if not (path.exists('/srv/salt/virl/ntp.sls')) and (path.exists('/srv/salt/ntp.sls')):
             subprocess.call(['sudo', 'cp', '/srv/salt/ntp.sls', '/srv/salt/virl/ntp.sls'])
         subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', 'openstack.restart'])
-        # subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', 'openstack.rabbitmq'])
-        # subprocess.call(['sudo', 'salt-call', '--local', '-l', 'quiet', 'state.sls', 'virl.host'])
-        # building_salt_all()
         sleep(50)
-        # call_salt('virl.openrc,virl.ntp')
-        # subprocess.call(['sudo', 'salt-call', '--local', '-l', 'quiet', 'state.sls', 'virl.ntp'])
-    #     print ('You need to restart now')
-    # if varg['renumber']:
-        # k_delete_list = (subprocess.check_output( ['keystone --os-username admin --os-password {ospassword} --os-tenant-name admin --os-auth-url=http://localhost:5000/v2.0 endpoint-list | grep -v "{publicip}" | grep -v "region" | grep -v "+-" |cut -d "|" -f2'.format(ospassword=ospassword,publicip=public_ip)],shell=True)).split()
-        # print k_delete_list
         qcall = ['neutron', '--os-tenant-name', 'admin', '--os-username', 'admin', '--os-password',
                  ospassword, '--os-auth-url=http://localhost:5000/v2.0']
         nmcall = ['nova-manage', '--os-tenant-name', 'admin', '--os-username', 'admin', '--os-password',
@@ -808,35 +762,16 @@ if __name__ == "__main__":
         # User_Creator(user_list, user_list_limited)
         if desktop:
             subprocess.call(['rm', '-f', '/home/virl/Desktop/Edit-settings.desktop'])
-            subprocess.call(['rm', '-f', '/home/virl/Desktop/Reboot2.desktop'])
-            subprocess.call(['rm', '-f', '/home/virl/Desktop/VIRL-rehost.desktop'])
             subprocess.call(['rm', '-f', '/home/virl/Desktop/VIRL-renumber.desktop'])
             subprocess.call(['rm', '-f', '/home/virl/Desktop/README.desktop'])
         print ('You need to restart now')
-    #     subprocess.call(['sudo', 'service', 'virl-uwm', 'stop'])
-    #     subprocess.call(['sudo', 'service', 'virl-std', 'stop'])
-    #     for _each in ['openstack','openstack.password.change']:
-    #         call_salt(_each)
-    #     building_salt_all()
-    #     sleep(5)
-        # for _next in ['openstack.neutron.changes','virl.std,virl.ank']:
-        #     call_salt(_next)
-        # create_basic_networks()
-        # if guest_account:
-        #     call_salt('virl.guest')
-        # novaclient = '/home/virl/.novaclient'
-        # if path.exists(novaclient):
-        #     subprocess.call(['sudo', 'chown', '-R', 'virl:virl', '/home/virl/.novaclient'])
-        # User_Creator(user_list, user_list_limited)
-        # subprocess.call(['rm', '/home/virl/Desktop/Edit-settings.desktop'])
-        # subprocess.call(['rm', '/home/virl/Desktop/Reboot2.desktop'])
-        # subprocess.call(['rm', '/home/virl/Desktop/VIRL-rehost.desktop'])
-        # subprocess.call(['rm', '/home/virl/Desktop/VIRL-renumber.desktop'])
-        # subprocess.call(['rm', '/home/virl/Desktop/README.desktop'])
-
     if varg['renumber']:
         print ('This command no longer required.')
         sleep(30)
+    if varg['nova']:
+        novaclient = '/home/virl/.novaclient'
+        if path.exists(novaclient):
+            subprocess.call(['sudo', 'chown', '-R', 'virl:virl', '/home/virl/.novaclient'])
     if varg['host']:
         call_salt('virl.host')
     if varg['routervms']:
@@ -850,13 +785,8 @@ if __name__ == "__main__":
     if varg['users']:
         User_Creator(user_list, user_list_limited)
 
-    if varg['wrap']:
-        sshdir = '/home/virl/.ssh'
-        if not path.exists(sshdir):
-            mkdir(sshdir)
-        if vagrant_keys or vagrant_calls:
-            copy((BASEDIR + 'orig/authorized_keys2'), ('/home/virl/.ssh/authorized_keys2'))
-            copy((BASEDIR + 'orig/authorized_keys'), ('/home/virl/.ssh/authorized_keys'))
+    if varg['bridge']:
+        call_salt('common.bridge')
 
     if path.exists('/tmp/install.out'):
         subprocess.call(['sudo', 'rm', '/tmp/install.out'])
