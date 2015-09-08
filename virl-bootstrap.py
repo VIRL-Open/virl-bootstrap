@@ -84,7 +84,7 @@ gitfs_remotes:
                 subprocess.check_output(['mkdir', '-p', '/etc/salt'])
             with open(("/etc/salt/grains"), "w") as grains:
                 grains.write("""proxy: True\n""")
-                grains.write("""http proxy: {proxy}\n""".format(proxy=proxy))
+                grains.write("""http_proxy: {proxy}\n""".format(proxy=proxy))
         else:
             with open(("/etc/salt/grains"), "w") as grains:
                 grains.write("""proxy: False\n""")
@@ -94,9 +94,15 @@ gitfs_remotes:
         subprocess.call(['cp', './master_sign.pub', '/etc/salt/pki/minion'])
         if salt_master == 'masterless':
             subprocess.call(['git', 'clone', '--depth', '1', 'https://github.com/Snergster/virl-salt.git', '/srv/salt'])
-            subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-X', 'stable'])
+            if not proxy == 'None':
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-H', '{proxy}'.format(proxy=proxy), '-X', 'stable'])
+            else:
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-X', 'stable'])
         else:
-            subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'stable'])
+            if not proxy == 'None':
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-H', '{proxy}'.format(proxy=proxy), '-X', 'stable'])
+            else:
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'stable'])
     if choice == 7:
         subprocess.call(['mkdir', '-p','/etc/salt/pki/minion'])
         subprocess.call(['cp', './master_sign.pub', '/etc/salt/pki/minion'])
@@ -109,9 +115,16 @@ gitfs_remotes:
         subprocess.call(['chmod', '400', '/etc/salt/pki/minion/minion.pem'])
         if salt_master == 'masterless':
             subprocess.call(['git', 'clone', 'https://github.com/Snergster/virl-salt.git', '/srv/salt'])
-            subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-X', 'stable'])
+            if not proxy == 'None':
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-H', '{proxy}'.format(proxy=proxy), '-X', 'stable'])
+            else:
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-X', 'stable'])
         else:
-            subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'stable'])
+            if not proxy == 'None':
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-H', '{proxy}'.format(proxy=proxy), '-X', 'stable'])
+            else:
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'stable'])
+
     if choice == 8:
         if salt_master == 'masterless':
             print "Running in masterless mode skipping ping."
