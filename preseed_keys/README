@@ -1,4 +1,8 @@
 
 Put your preseed keys in this directory.
 
-Please make sure your key name matches your salt id + salt domain
+Please make sure your key name matches your salt id + salt domain and must in the format:
+
+<salt_id.domain.pem>
+
+Example: abcd1234.virl.info.pem
