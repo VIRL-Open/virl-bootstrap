@@ -5,7 +5,7 @@
 """virl install.
 
 Usage:
-  vinstall.py zero | first | second | third | fourth | salt | test | test1 | iso | bridge | desktop | rehost | renumber | compute | all | upgrade | nova | vmm | routervms | users | vinstall | host | mini | highstate
+  vinstall.py zero | first | second | third | fourth | salt | test | test1 | iso | bridge | desktop | rehost | renumber | compute | all | upgrade | nova | vmm | routervms | users | vinstall | host | mini | highstate | defrost
 
 Options:
   --version             shows program's version number and exit
@@ -101,6 +101,7 @@ address_l2_port2 = True
 flat2_dns1 = safeparser.get('DEFAULT', 'first_flat2_nameserver', fallback='8.8.8.8')
 flat2_dns2 = safeparser.get('DEFAULT', 'second_flat2_nameserver', fallback='8.8.4.4')
 
+dist_upgrade = safeparser.getboolean('DEFAULT', 'dist_upgrade', fallback=True)
 masterless = safeparser.getboolean('DEFAULT', 'salt_masterless', fallback=False)
 RAMDISK = safeparser.getboolean('DEFAULT', 'ramdisk', fallback=False)
 ank = safeparser.get('DEFAULT', 'ank', fallback='19401')
@@ -148,6 +149,7 @@ cinder_size = safeparser.get('DEFAULT', 'cinder_size', fallback=2000 )
 cinder_loc = safeparser.get('DEFAULT', 'cinder_location', fallback='/var/lib/cinder/cinder-volumes.lvm')
 neutron_switch = safeparser.get('DEFAULT', 'neutron_switch', fallback='linuxbridge')
 desktop = safeparser.getboolean('DEFAULT', 'desktop', fallback=False)
+desktop_manager = safeparser.get('DEFAULT', 'desktop_manager', fallback='lubuntu')
 
 #Packaging section
 cariden = safeparser.getboolean('DEFAULT', 'cariden', fallback=False)
@@ -169,7 +171,7 @@ cml = safeparser.getboolean('DEFAULT', 'cml', fallback=False)
 #Operational Section
 image_set = safeparser.get('DEFAULT', 'image_set', fallback='internal')
 salt = safeparser.getboolean('DEFAULT', 'salt', fallback=True)
-salt_master = safeparser.get('DEFAULT', 'salt_master', fallback='none')
+salt_master = safeparser.get('DEFAULT', 'salt_master', fallback='')
 salt_id = safeparser.get('DEFAULT', 'salt_id', fallback='virl')
 salt_domain = safeparser.get('DEFAULT', 'salt_domain', fallback='virl.info')
 salt_env = safeparser.get('DEFAULT', 'salt_env', fallback='none')
@@ -181,6 +183,7 @@ jumbo_frames = safeparser.getboolean('DEFAULT', 'jumbo_frames', fallback=False)
 
 #Testing Section
 icehouse = safeparser.getboolean('DEFAULT', 'icehouse', fallback=True)
+kilo = safeparser.getboolean('DEFAULT', 'kilo', fallback=False)
 
 testingank = safeparser.getboolean('DEFAULT', 'testing_ank', fallback=False)
 testingstd = safeparser.getboolean('DEFAULT', 'testing_std', fallback=False)
@@ -271,12 +274,14 @@ def building_salt_extra():
                 extra.write("""master_type: failover \n""")
                 extra.write("""master_shuffle: True \n""")
                 extra.write("""random_master: True \n""")
+                extra.write("""auth_tries: 1 \n""")
+                extra.write("""auth_timeout: 15 \n""")
+                extra.write("""master_alive_interval: 180 \n""")
             else:
                 extra.write("""master: {salt_master}\n""".format(salt_master=salt_master))
-
             extra.write("""verify_master_pubkey_sign: True \n""")
-            extra.write("""auth_timeout: 15 \n""")
-            extra.write("""master_alive_interval: 180 \n""")
+            extra.write("""state_output: mixed \n""")
+            extra.write("""always_verify_signature: True \n""")
         else:
             if path.exists('/usr/local/lib/python2.7/dist-packages/pygit2'):
                 extra.write("""gitfs_provider: pygit2\n""")
@@ -285,6 +290,8 @@ def building_salt_extra():
 fileserver_backend:
   - git
   - roots
+
+state_output: mixed
 
 gitfs_remotes:
   - https://github.com/Snergster/virl-salt.git\n""")
@@ -295,6 +302,8 @@ gitfs_remotes:
 fileserver_backend:
   - git
   - roots
+
+state_output: mixed
 
 gitfs_remotes:
   - https://github.com/Snergster/virl-salt.git\n""")
@@ -363,10 +372,13 @@ virl:
                     salt_grain.write(""" '{key}': {value} ,""".format(key=key,value=value))
                 else:
                     salt_grain.write(""" '{key}': '{value}',""".format(key=key,value=value))
-            if cinder_device or cinder_file:
-                salt_grain.write("""  'cinder_enabled': True ,""")
-            else:
+            if cml:
                 salt_grain.write("""  'cinder_enabled': False ,""")
+            else:
+                if cinder_device or cinder_file:
+                    salt_grain.write("""  'cinder_enabled': True ,""")
+                else:
+                    salt_grain.write("""  'cinder_enabled': False ,""")
             if not uwm_port == '14000':
                 salt_grain.write("""  'uwm_url': 'http://{0}:{1}',""".format(public_ip,uwm_port))
             salt_grain.write(""" 'neutron_extnet_id': '{neutid}',""".format(neutid=neutron_extnet_id))
@@ -768,6 +780,56 @@ if __name__ == "__main__":
     if varg['renumber']:
         print ('This command no longer required.')
         sleep(30)
+    if varg['defrost']:
+        building_salt_all()
+        call_salt('openstack')
+        call_salt('openstack.setup')
+        call_salt('openstack.stop')
+        call_salt('virl.basics')
+        call_salt('openstack.rabbitmq')
+        call_salt('openstack.start')
+        call_salt('openstack.rabbitmq')
+        call_salt('openstack.restart')
+        call_salt('virl.std')
+        call_salt('virl.ank')
+
+        if masterless:
+            subprocess.call(['sudo', 'salt-call', '--local', '-l', 'quiet', 'virl_core.project_absent', 'name=guest'])
+        else:
+            subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'virl_core.project_absent', 'name=guest'])
+
+        nova_services_hosts = ["'ubuntu'"]
+        nova_service_list = ["nova-compute","nova-cert","nova-consoleauth","nova-scheduler","nova-conductor"]
+        print ('Deleting Nova services for old hostnames')
+        pmypassword = '-p' + mypassword
+        subprocess.call(['sudo', 'mysql', '-uroot', pmypassword , 'nova',
+                        '--execute=delete from compute_nodes'])
+        subprocess.call(['sudo', 'mysql', '-uroot', pmypassword , 'nova',
+                         '--execute=delete from services'])
+
+        if not (path.exists('/srv/salt/virl/host.sls')) and (path.exists('/srv/salt/host.sls')):
+            subprocess.call(['sudo', 'cp', '/srv/salt/host.sls', '/srv/salt/virl/host.sls'])
+        if not (path.exists('/srv/salt/virl/ntp.sls')) and (path.exists('/srv/salt/ntp.sls')):
+            subprocess.call(['sudo', 'cp', '/srv/salt/ntp.sls', '/srv/salt/virl/ntp.sls'])
+        subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', 'openstack.restart'])
+        sleep(50)
+        qcall = ['neutron', '--os-tenant-name', 'admin', '--os-username', 'admin', '--os-password',
+                 ospassword, '--os-auth-url=http://localhost:5000/v2.0']
+        nmcall = ['nova-manage', '--os-tenant-name', 'admin', '--os-username', 'admin', '--os-password',
+                 ospassword, '--os-auth-url=http://localhost:5000/v2.0']
+        subprocess.call(qcall + ['subnet-delete', 'flat'])
+        subprocess.call(qcall + ['subnet-delete', 'flat1'])
+        subprocess.call(qcall + ['subnet-delete', 'ext-net'])
+        q_delete_list = (subprocess.check_output( ['neutron --os-username admin --os-password {ospassword} --os-tenant-name admin --os-auth-url=http://localhost:5000/v2.0 agent-list | grep -v "{hostname}" |grep -v "region" | grep -v "+-" | cut -d "|" -f2'.format(ospassword=ospassword,hostname=hostname)], shell=True)).split()
+        print q_delete_list
+        for _qeach in q_delete_list:
+            subprocess.call(qcall + ['agent-delete', '{0}'.format(_qeach)])
+        create_basic_networks()
+        if guest_account:
+            call_salt('virl.guest')
+        novaclient = '/home/virl/.novaclient'
+        if path.exists(novaclient):
+            subprocess.call(['sudo', 'chown', '-R', 'virl:virl', '/home/virl/.novaclient'])
     if varg['nova']:
         novaclient = '/home/virl/.novaclient'
         if path.exists(novaclient):
@@ -778,7 +840,8 @@ if __name__ == "__main__":
         call_salt('virl.routervms')
     if varg['vmm'] or varg['upgrade']:
         call_salt('virl.vmm.download')
-        call_salt('virl.vmm.local')
+        if desktop:
+          call_salt('virl.vmm.local')
 
     if varg['salt']:
         building_salt_all()
