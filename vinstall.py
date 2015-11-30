@@ -59,7 +59,7 @@ DEFAULT = safeparser['DEFAULT']
 
 
 hostname = safeparser.get('DEFAULT', 'hostname', fallback='virl')
-fqdn = safeparser.get('DEFAULT', 'domain', fallback='cisco.com')
+fqdn = safeparser.get('DEFAULT', 'domain_name', fallback='virl.info')
 
 dhcp_public = safeparser.getboolean('DEFAULT', 'using_dhcp_on_the_public_port', fallback=True)
 public_port = safeparser.get('DEFAULT', 'public_port', fallback='eth0')
@@ -180,6 +180,7 @@ cisco_internal = safeparser.getboolean('DEFAULT', 'inside_cisco', fallback=False
 onedev = safeparser.getboolean('DEFAULT', 'onedev', fallback=False)
 dummy_int = safeparser.getboolean('DEFAULT', 'dummy_int', fallback=False)
 jumbo_frames = safeparser.getboolean('DEFAULT', 'jumbo_frames', fallback=False)
+ram_overcommit = safeparser.get('DEFAULT', 'ram_overcommit', fallback='2')
 
 #Testing Section
 icehouse = safeparser.getboolean('DEFAULT', 'icehouse', fallback=True)
@@ -277,6 +278,7 @@ def building_salt_extra():
                 extra.write("""auth_tries: 1 \n""")
                 extra.write("""auth_timeout: 15 \n""")
                 extra.write("""master_alive_interval: 180 \n""")
+                extra.write("""retry_dns: 0 \n""")
             else:
                 extra.write("""master: {salt_master}\n""".format(salt_master=salt_master))
             extra.write("""verify_master_pubkey_sign: True \n""")
@@ -352,6 +354,7 @@ keystone.tenant_id: {tenid}
 keystone.auth_url: 'http://127.0.0.1:5000/v2.0/'
 keystone.token: {kstoken}
 keystone.region_name: 'RegionOne'
+keystone.service_type: 'network'
 
 mysql.user: root
 mysql.pass: {mypass}
@@ -362,7 +365,8 @@ virl:
   keystone.tenant: admin
   keystone.tenant_id: {tenid}
   keystone.auth_url: 'http://127.0.0.1:5000/v2.0/'
-  keystone.region_name: 'RegionOne'\n""".format(ospassword=ospassword, kstoken=ks_token, tenid=admin_tenid, mypass=mypassword))
+  keystone.region_name: 'RegionOne'
+  keystone.service_type: 'network'\n""".format(ospassword=ospassword, kstoken=ks_token, tenid=admin_tenid, mypass=mypassword))
     if path.exists('/usr/bin/salt-call'):
         with open(("/tmp/foo"), "w") as salt_grain:
             salt_grain.write("""{""")
@@ -690,7 +694,7 @@ if __name__ == "__main__":
 
     if varg['fourth'] or varg['all'] :
         if masterless:
-            call_salt('openstack.neutron.changes,virl.std,virl.ank')
+            call_salt('openstack.neutron.changes,virl.std,virl.ank,virl.openvpn')
             # call_salt('virl.ank')
         else:
             subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', 'openstack.neutron.changes,virl.std,virl.ank'])
@@ -721,6 +725,7 @@ if __name__ == "__main__":
         building_salt_all()
         subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.highstate'])
         call_salt('common.distuptodate')
+        #call_salt('virl.network.int')
         call_salt('openstack')
         call_salt('openstack.setup')
         call_salt('openstack.stop')
