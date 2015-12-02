@@ -95,14 +95,14 @@ gitfs_remotes:
         if salt_master == 'masterless':
             subprocess.call(['git', 'clone', '--depth', '1', 'https://github.com/Snergster/virl-salt.git', '/srv/salt'])
             if not proxy == 'None':
-              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-H', '{proxy}'.format(proxy=proxy), '-X', 'git', 'v2015.5.6'])
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-H', '{proxy}'.format(proxy=proxy), '-X', '-P', 'git', 'v2015.8.2'])
             else:
-              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-X', 'git', 'v2015.5.6'])
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-X', '-P', 'git', 'v2015.8.2'])
         else:
             if not proxy == 'None':
-              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-H', '{proxy}'.format(proxy=proxy), '-X', 'git', 'v2015.5.6'])
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-H', '{proxy}'.format(proxy=proxy), '-X', '-P', 'git', 'v2015.8.2'])
             else:
-              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'git', 'v2015.5.6'])
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'git', 'v2015.8.2'])
     if choice == 7:
         subprocess.call(['mkdir', '-p','/etc/salt/pki/minion'])
         subprocess.call(['cp', './master_sign.pub', '/etc/salt/pki/minion'])
@@ -116,14 +116,14 @@ gitfs_remotes:
         if salt_master == 'masterless':
             subprocess.call(['git', 'clone', 'https://github.com/Snergster/virl-salt.git', '/srv/salt'])
             if not proxy == 'None':
-              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-H', '{proxy}'.format(proxy=proxy), '-X', 'git', 'v2015.5.6'])
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-H', '{proxy}'.format(proxy=proxy), '-X', '-P' 'git', 'v2015.8.2'])
             else:
-              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-X', 'git', 'v2015.5.6'])
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-X', '-P', 'git', 'v2015.8.2'])
         else:
             if not proxy == 'None':
-              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-H', '{proxy}'.format(proxy=proxy), '-X', 'git', 'v2015.5.6'])
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-H', '{proxy}'.format(proxy=proxy), '-X', '-P', 'git', 'v2015.8.2'])
             else:
-              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', 'git', 'v2015.5.6'])
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-P', 'git', 'v2015.8.2'])
 
     if choice == 8:
         if salt_master == 'masterless':
