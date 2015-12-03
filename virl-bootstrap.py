@@ -160,7 +160,7 @@ gitfs_remotes:
             subprocess.call(['crudini', '--set','/etc/virl.ini', 'DEFAULT',
                          'hostname', hostname ])
             subprocess.call(['crudini', '--set','/etc/virl.ini', 'DEFAULT',
-                         'domain', domain])
+                         'domain_name', domain])
         subprocess.call(['/usr/bin/nano', '/etc/virl.ini'])
 
     if choice == 11:
