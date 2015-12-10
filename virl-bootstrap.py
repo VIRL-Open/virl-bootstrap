@@ -135,7 +135,7 @@ gitfs_remotes:
         if salt_master == 'masterless':
             subprocess.call(['salt-call', '--local', 'state.sls', 'zero'])
         else:
-            subprocess.call(['salt-call', 'state.sls', 'zero'])
+            subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'zero'])
     if choice == 10:
         if not path.exists('/etc/virl.ini'):
             subprocess.call(['cp', './vsettings.ini', '/etc/virl.ini'])
@@ -168,5 +168,10 @@ gitfs_remotes:
             subprocess.call(['rm', '/etc/salt/grains'])
         subprocess.call(['/usr/local/bin/vinstall', 'salt'])
         sleep(5)
-        subprocess.call(['/usr/local/bin/vinstall', 'first'])
+        subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'common.virl'])
+        subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'virl.basics'])
+        subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'saltutil.sync_all'])
+        subprocess.call(['/usr/local/bin/vinstall', 'salt'])
+        subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'virl.openrc'])
+        print 'Please validate the contents of /etc/network/interfaces before rebooting!'
         while_exit = 1
