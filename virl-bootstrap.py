@@ -95,14 +95,14 @@ gitfs_remotes:
         if salt_master == 'masterless':
             subprocess.call(['git', 'clone', '--depth', '1', 'https://github.com/Snergster/virl-salt.git', '/srv/salt'])
             if not proxy == 'None':
-              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-P', '-H', '{proxy}'.format(proxy=proxy), '-X', '-P', 'git', 'v2015.8.3'])
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-P', '-H', '{proxy}'.format(proxy=proxy), '-X', '-P', 'stable'])
             else:
-              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-X', '-P', 'git', 'v2015.8.3'])
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-X', '-P', 'stable'])
         else:
             if not proxy == 'None':
-              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-P', '-H', '{proxy}'.format(proxy=proxy), '-X', '-P', 'git', 'v2015.8.3'])
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-P', '-H', '{proxy}'.format(proxy=proxy), '-X', '-P', 'stable'])
             else:
-              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-P', 'git', 'v2015.8.3'])
+              subprocess.call(['sh', '/home/virl/virl-bootstrap/bootstrap-salt.sh', '-P', 'stable'])
     if choice == 7:
         subprocess.call(['mkdir', '-p','/etc/salt/pki/minion'])
         subprocess.call(['cp', './master_sign.pub', '/etc/salt/pki/minion'])
@@ -171,6 +171,7 @@ gitfs_remotes:
         subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'common.virl'])
         subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'virl.basics'])
         subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'saltutil.sync_all'])
+        subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'common.virl,virl.web'])
         subprocess.call(['/usr/local/bin/vinstall', 'salt'])
         subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'virl.openrc'])
         print 'Please validate the contents of /etc/network/interfaces before rebooting!'

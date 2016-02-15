@@ -5,7 +5,7 @@
 """virl install.
 
 Usage:
-  vinstall.py zero | first | second | third | fourth | salt | test | test1 | iso | bridge | desktop | rehost | renumber | compute | all | upgrade | nova | vmm | routervms | users | vinstall | host | mini | highstate | defrost
+  vinstall.py zero | first | second | third | fourth | salt | test | test1 | iso | bridge | desktop | rehost | renumber | compute | all | upgrade | nova | vmm | routervms | users | vinstall | host | mini | highstate | defrost | kvm | cluster
 
 Options:
   --version             shows program's version number and exit
@@ -181,6 +181,10 @@ onedev = safeparser.getboolean('DEFAULT', 'onedev', fallback=False)
 dummy_int = safeparser.getboolean('DEFAULT', 'dummy_int', fallback=False)
 jumbo_frames = safeparser.getboolean('DEFAULT', 'jumbo_frames', fallback=False)
 ram_overcommit = safeparser.get('DEFAULT', 'ram_overcommit', fallback='2')
+cpu_overcommit = safeparser.get('DEFAULT', 'cpu_overcommit', fallback='3')
+download_proxy = safeparser.get('DEFAULT', 'download_proxy', fallback='')
+download_no_proxy = safeparser.get('DEFAULT', 'download_no_proxy', fallback='')
+download_proxy_user = safeparser.get('DEFAULT', 'download_proxy_user', fallback='')
 
 #Testing Section
 icehouse = safeparser.getboolean('DEFAULT', 'icehouse', fallback=True)
@@ -196,6 +200,7 @@ v144 = safeparser.getboolean('DEFAULT', 'v144', fallback=True)
 testingdevops = safeparser.getboolean('DEFAULT', 'testing_devops', fallback=False)
 
 #cluster section
+virl_cluster = safeparser.getboolean('DEFAULT', 'virl_cluster', fallback=False)
 controller = safeparser.getboolean('DEFAULT', 'this_node_is_the_controller', fallback=True)
 internalnet_controller_ip = safeparser.get('DEFAULT', 'internalnet_controller_IP', fallback='172.16.10.250')
 internalnet_controller_hostname = safeparser.get('DEFAULT', 'internalnet_controller_hostname', fallback='controller')
@@ -281,9 +286,10 @@ def building_salt_extra():
                 extra.write("""retry_dns: 0 \n""")
             else:
                 extra.write("""master: {salt_master}\n""".format(salt_master=salt_master))
-            extra.write("""verify_master_pubkey_sign: True \n""")
             extra.write("""state_output: mixed \n""")
-            extra.write("""always_verify_signature: True \n""")
+            if controller:
+              extra.write("""verify_master_pubkey_sign: True \n""")
+              extra.write("""always_verify_signature: True \n""")
         else:
             if path.exists('/usr/local/lib/python2.7/dist-packages/pygit2'):
                 extra.write("""gitfs_provider: pygit2\n""")
@@ -577,6 +583,14 @@ def call_salt(slsfile):
         subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls', slsfile])
     sleep(5)
 
+def call_salt_quiet(slsfile):
+    print 'Please be patient file {slsfile} is running'.format(slsfile=slsfile)
+    if masterless:
+        subprocess.call(['sudo', 'salt-call', '--local', '-l', 'quiet', 'state.sls', slsfile])
+    else:
+        subprocess.call(['sudo', 'salt-call', '--state-output=terse', '-l', 'quiet', 'state.sls', slsfile])
+    sleep(5)
+
 if __name__ == "__main__":
 
     varg = docopt(__doc__, version='vinstall .8')
@@ -646,20 +660,20 @@ if __name__ == "__main__":
             subprocess.call(['sudo', 'chown', '-R', 'virl:virl', '/home/virl/.novaclient'])
 
     if varg['third'] or varg['all'] :
-        if cinder:
-            # call_salt('openstack.cinder.install')
-            if cinder_file:
-                subprocess.call(['sudo', '/bin/dd', 'if=/dev/zero', 'of={0}'.format(cinder_loc), 'bs=1M',
-                                 'count={0}'.format(cinder_size)])
-                subprocess.call(['sudo', '/sbin/losetup', '-f', '--show', '{0}'.format(cinder_loc)])
-                subprocess.call(['sudo', '/sbin/pvcreate', '/dev/loop0'])
-                subprocess.call(['sudo', '/sbin/vgcreate', 'cinder-volumes', '/dev/loop0'])
-                # subprocess.call(['sudo', '/sbin/vgcreate', 'cinder-volumes', '{0}'.format(cinder_loc)])
-            elif cinder_device:
-                subprocess.call(['sudo', '/sbin/pvcreate', '{0}'.format(cinder_loc)])
-                subprocess.call(['sudo', '/sbin/vgcreate', 'cinder-volumes', '{0}'.format(cinder_loc)])
-            else:
-                print 'No cinder file or drive created'
+        # if cinder:
+        #     # call_salt('openstack.cinder.install')
+        #     if cinder_file:
+        #         subprocess.call(['sudo', '/bin/dd', 'if=/dev/zero', 'of={0}'.format(cinder_loc), 'bs=1M',
+        #                          'count={0}'.format(cinder_size)])
+        #         subprocess.call(['sudo', '/sbin/losetup', '-f', '--show', '{0}'.format(cinder_loc)])
+        #         subprocess.call(['sudo', '/sbin/pvcreate', '/dev/loop0'])
+        #         subprocess.call(['sudo', '/sbin/vgcreate', 'cinder-volumes', '/dev/loop0'])
+        #         # subprocess.call(['sudo', '/sbin/vgcreate', 'cinder-volumes', '{0}'.format(cinder_loc)])
+        #     elif cinder_device:
+        #         subprocess.call(['sudo', '/sbin/pvcreate', '{0}'.format(cinder_loc)])
+        #         subprocess.call(['sudo', '/sbin/vgcreate', 'cinder-volumes', '{0}'.format(cinder_loc)])
+        #     else:
+        #         print 'No cinder file or drive created'
 
         #
         # if horizon:
@@ -842,19 +856,22 @@ if __name__ == "__main__":
     if varg['host']:
         call_salt('virl.host')
     if varg['routervms']:
-        call_salt('virl.routervms')
+        call_salt_quiet('virl.routervms')
     if varg['vmm'] or varg['upgrade']:
-        call_salt('virl.vmm.download')
+        call_salt_quiet('virl.vmm.download')
         if desktop:
-          call_salt('virl.vmm.local')
+          call_salt_quiet('virl.vmm.local')
 
     if varg['salt']:
         building_salt_all()
+        if virl_cluster and controller:
+            call_salt_quiet('common.salt-master.cluster-config')
     if varg['users']:
         User_Creator(user_list, user_list_limited)
 
     if varg['bridge']:
         call_salt('common.bridge')
-
+    if varg['kvm']:
+        call_salt('common.kvm,common.ksm')
     if path.exists('/tmp/install.out'):
         subprocess.call(['sudo', 'rm', '/tmp/install.out'])
