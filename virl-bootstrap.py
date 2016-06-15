@@ -170,7 +170,7 @@ gitfs_remotes:
         sleep(5)
         subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'common.virl'])
         subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'virl.basics'])
-        subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'saltutil.sync_all'])
+        subprocess.call(['salt-call', '-l', 'debug', 'saltutil.sync_all'])
         subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'common.virl,virl.web'])
         subprocess.call(['/usr/local/bin/vinstall', 'salt'])
         subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'virl.openrc'])
