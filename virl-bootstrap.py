@@ -5,7 +5,7 @@ __author__ = 'ejk'
     https://github.com/saltstack/salt-bootstrap/blob/develop/AUTHORS.rst
     all credit to them for that fine piece of work'''
 import subprocess
-from os import path
+from os import path, system
 from time import sleep
 import glob
 
@@ -17,6 +17,15 @@ cwd = path.realpath('./')
 proxy = 'None'
 hostname = 'virl'
 domain = 'virl.info'
+
+if system('grep 16.04 /etc/issue.net') == 0:
+    xenial = True
+else:
+    xenial = False
+if xenial:
+    nano_path = '/bin/nano'
+else:
+    nano_path = '/usr/bin/nano'
 
 while not while_exit:
     print (30 * '-')
@@ -131,7 +140,11 @@ gitfs_remotes:
         else:
             subprocess.call(['salt-call', 'test.ping'])
     if choice == 9:
-        subprocess.call(['salt-call', '--local', 'grains.setval', 'kilo', 'true'])
+        if xenial:
+            subprocess.call(['salt-call', '--local', 'grains.setval', 'mitaka', 'true'])
+            subprocess.call(['salt-call', '--local', 'grains.setval', 'kilo', 'false'])
+        else:
+            subprocess.call(['salt-call', '--local', 'grains.setval', 'kilo', 'true'])
         if salt_master == 'masterless':
             subprocess.call(['salt-call', '--local', 'state.sls', 'zero'])
         else:
@@ -161,7 +174,7 @@ gitfs_remotes:
                          'hostname', hostname ])
             subprocess.call(['crudini', '--set','/etc/virl.ini', 'DEFAULT',
                          'domain_name', domain])
-        subprocess.call(['/usr/bin/nano', '/etc/virl.ini'])
+        subprocess.call([nano_path, '/etc/virl.ini'])
 
     if choice == 11:
         if path.isfile('/etc/salt/grains'):
@@ -174,5 +187,7 @@ gitfs_remotes:
         subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'common.virl,virl.web'])
         subprocess.call(['/usr/local/bin/vinstall', 'salt'])
         subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'virl.openrc'])
+        if xenial:
+            subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'common.xenial-bootstrap'])
         print 'Please validate the contents of /etc/network/interfaces before rebooting!'
         while_exit = 1
