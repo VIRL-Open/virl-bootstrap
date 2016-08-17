@@ -85,6 +85,8 @@ gitfs_remotes:
             ##TODO waiting for salt to put this back in
             # extra.write("""grains_dirs:\n""")
             # extra.write("""  - /etc/salt/virl\n""")
+        with open(("/etc/salt/minion.d/stateagg.conf"), "w") as stateagg:
+            stateagg.write("""state_aggregate: False \n""")
 
     if choice == 5:
         proxy = raw_input('Http proxy [%s] ' % proxy) or 'None'
