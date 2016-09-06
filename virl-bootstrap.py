@@ -176,6 +176,16 @@ gitfs_remotes:
                          'hostname', hostname ])
             subprocess.call(['crudini', '--set','/etc/virl.ini', 'DEFAULT',
                          'domain_name', domain])
+        if xenial:
+            subprocess.call(['crudini', '--set','/etc/virl.ini', 'DEFAULT',
+                         'mitaka', 'True'])
+            subprocess.call(['crudini', '--set','/etc/virl.ini', 'DEFAULT',
+                         'kilo', 'False'])
+        else:
+            subprocess.call(['crudini', '--set','/etc/virl.ini', 'DEFAULT',
+                         'mitaka', 'False'])
+            subprocess.call(['crudini', '--set','/etc/virl.ini', 'DEFAULT',
+                         'kilo', 'True'])
         subprocess.call([nano_path, '/etc/virl.ini'])
 
     if choice == 11:
