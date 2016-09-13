@@ -148,8 +148,12 @@ gitfs_remotes:
         else:
             subprocess.call(['salt-call', '--local', 'grains.setval', 'kilo', 'true'])
         if salt_master == 'masterless':
+            if xenial:
+                subprocess.call(['salt-call', '--local', 'state.sls', 'common.xenial-pip'])
             subprocess.call(['salt-call', '--local', 'state.sls', 'zero'])
         else:
+            if xenial:
+                subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'common.xenial-pip'])
             subprocess.call(['salt-call', '-l', 'debug', 'state.sls', 'zero'])
     if choice == 10:
         if not path.exists('/etc/virl.ini'):

@@ -90,7 +90,8 @@ address_l2_port = True
 flat_dns1 = safeparser.get('DEFAULT', 'first_flat_nameserver', fallback='8.8.8.8')
 flat_dns2 = safeparser.get('DEFAULT', 'second_flat_nameserver', fallback='8.8.4.4')
 
-l2_port2_enabled = safeparser.getboolean('DEFAULT', 'l2_port2_enabled', fallback=True)
+#l2_port2_enabled = safeparser.getboolean('DEFAULT', 'l2_port2_enabled', fallback=True)
+l2_port2_enabled = True
 l2_port2 = safeparser.get('DEFAULT', 'l2_port2', fallback='eth2')
 l2_mask2 = safeparser.get('DEFAULT', 'l2_mask2', fallback='255.255.255.0')
 l2_bridge_port2 = safeparser.get('DEFAULT', 'l2_bridge_port2', fallback='br-eth2')
@@ -174,7 +175,8 @@ cml = safeparser.getboolean('DEFAULT', 'cml', fallback=False)
 #Operational Section
 image_set = safeparser.get('DEFAULT', 'image_set', fallback='internal')
 salt = safeparser.getboolean('DEFAULT', 'salt', fallback=True)
-salt_master = safeparser.get('DEFAULT', 'salt_master', fallback='')
+salt_master = safeparser.get('DEFAULT', 'salt_master', fallback='us-1.virl.info,us-2.virl.info,us-3.virl.info,us-4.virl.info')
+salt_master_tcp = safeparser.get('DEFAULT', 'salt_master_tcp', fallback='us-1-tcp.virl.info,us-2-tcp.virl.info,us-3-tcp.virl.info,us-4-tcp.virl.info')
 salt_id = safeparser.get('DEFAULT', 'salt_id', fallback='virl')
 salt_domain = safeparser.get('DEFAULT', 'salt_domain', fallback='virl.info')
 multi_salt_key = safeparser.getint('DEFAULT', 'multi_salt_key', fallback=1)
@@ -185,6 +187,8 @@ salt_domain3 = safeparser.get('DEFAULT', 'salt_domain3', fallback='virl.info')
 salt_id4 = safeparser.get('DEFAULT', 'salt_id4', fallback='virl')
 salt_domain4 = safeparser.get('DEFAULT', 'salt_domain4', fallback='virl.info')
 salt_env = safeparser.get('DEFAULT', 'salt_env', fallback='none')
+salt_tcp = safeparser.getboolean('DEFAULT', 'salt_transport_tcp', fallback=False)
+
 virl_type = safeparser.get('DEFAULT', 'Is_this_a_stable_or_testing_server', fallback='stable')
 cisco_internal = safeparser.getboolean('DEFAULT', 'inside_cisco', fallback=False)
 onedev = safeparser.getboolean('DEFAULT', 'onedev', fallback=False)
@@ -199,6 +203,7 @@ download_proxy_user = safeparser.get('DEFAULT', 'download_proxy_user', fallback=
 #Testing Section
 icehouse = safeparser.getboolean('DEFAULT', 'icehouse', fallback=False)
 kilo = safeparser.getboolean('DEFAULT', 'kilo', fallback=True)
+mitaka = safeparser.getboolean('DEFAULT', 'mitaka', fallback=False)
 
 testingank = safeparser.getboolean('DEFAULT', 'testing_ank', fallback=False)
 testingstd = safeparser.getboolean('DEFAULT', 'testing_std', fallback=False)
@@ -286,7 +291,10 @@ def building_salt_extra():
     with open(("/tmp/extra"), "w") as extra:
         if not masterless or vagrant_pre_fourth:
             if len(salt_master.split(',')) >= 2:
-                extra.write("""master: [{salt_master}]\n""".format(salt_master=salt_master))
+                if salt_tcp:
+                  extra.write("""master: [{salt_master}]\n""".format(salt_master=salt_master_tcp))
+                else:
+                  extra.write("""master: [{salt_master}]\n""".format(salt_master=salt_master))
                 extra.write("""master_type: failover \n""")
                 extra.write("""master_shuffle: True \n""")
                 extra.write("""random_master: True \n""")
@@ -295,8 +303,10 @@ def building_salt_extra():
                 extra.write("""master_alive_interval: 180 \n""")
                 extra.write("""retry_dns: 0 \n""")
             else:
-                extra.write("""master: {salt_master}\n""".format(salt_master=salt_master))
-            extra.write("""state_output: mixed \n""")
+                if salt_tcp:
+                  extra.write("""master: {salt_master}\n""".format(salt_master=salt_master_tcp))
+                else:
+                  extra.write("""master: {salt_master}\n""".format(salt_master=salt_master))
             if controller:
               extra.write("""verify_master_pubkey_sign: True \n""")
               extra.write("""always_verify_signature: True \n""")
@@ -309,8 +319,6 @@ fileserver_backend:
   - git
   - roots
 
-state_output: mixed
-
 gitfs_remotes:
   - https://github.com/Snergster/virl-salt.git\n""")
             elif path.exists('/usr/local/lib/python2.7/dist-packages/dulwich'):
@@ -320,8 +328,6 @@ gitfs_remotes:
 fileserver_backend:
   - git
   - roots
-
-state_output: mixed
 
 gitfs_remotes:
   - https://github.com/Snergster/virl-salt.git\n""")
@@ -334,6 +340,13 @@ fileserver_backend:
         extra.write("""id: '{salt_id}'\n""".format(salt_id=salt_id))
         extra.write("""append_domain: {salt_domain}\n""".format(salt_domain=salt_domain))
     subprocess.call(['sudo', 'mv', '-f', ('/tmp/extra'), '/etc/salt/minion.d/extra.conf'])
+    if salt_tcp:
+        with open(("/tmp/tcp.conf"), "w") as stcp:
+            stcp.write("""transport: tcp\n""")
+            stcp.write("""hash_type: sha256\n""")
+        subprocess.call(['sudo', 'mv', '-f', ('/tmp/tcp.conf'), '/etc/salt/minion.d/tcp.conf'])
+    else:
+        subprocess.call(['sudo', 'rm', '-f', '/etc/salt/minion.d/tcp.conf'])
 
 def building_salt_extras(count):
     with open(("/tmp/extra{count}".format(count=count)), "w") as extra:
@@ -349,7 +362,6 @@ def building_salt_extras(count):
                 extra.write("""retry_dns: 0 \n""")
             else:
                 extra.write("""master: {salt_master}\n""".format(salt_master=salt_master))
-            extra.write("""state_output: mixed \n""")
             if controller:
               extra.write("""verify_master_pubkey_sign: True \n""")
               extra.write("""always_verify_signature: True \n""")
@@ -362,8 +374,6 @@ fileserver_backend:
   - git
   - roots
 
-state_output: mixed
-
 gitfs_remotes:
   - https://github.com/Snergster/virl-salt.git\n""")
             elif path.exists('/usr/local/lib/python2.7/dist-packages/dulwich'):
@@ -373,8 +383,6 @@ gitfs_remotes:
 fileserver_backend:
   - git
   - roots
-
-state_output: mixed
 
 gitfs_remotes:
   - https://github.com/Snergster/virl-salt.git\n""")
