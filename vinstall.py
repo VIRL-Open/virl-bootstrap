@@ -16,6 +16,9 @@ import configparser
 import subprocess
 import logging
 import envoy
+import json
+import sys
+import re
 from time import sleep
 from tempfile import mkstemp
 from shutil import move, copy, copystat
@@ -44,7 +47,7 @@ safeparser = configparser.ConfigParser()
 safeparser_file = '/etc/virl.ini'
 # safeparser_backup_file = '/home/virl/vsettings.ini'
 if path.exists(safeparser_file):
-    safeparser.read('/etc/virl.ini')
+    safeparser.read(safeparser_file)
 # elif path.exists(safeparser_backup_file):
 #     safeparser.read('/home/virl/vsettings.ini')
 else:
@@ -87,7 +90,8 @@ address_l2_port = True
 flat_dns1 = safeparser.get('DEFAULT', 'first_flat_nameserver', fallback='8.8.8.8')
 flat_dns2 = safeparser.get('DEFAULT', 'second_flat_nameserver', fallback='8.8.4.4')
 
-l2_port2_enabled = safeparser.getboolean('DEFAULT', 'l2_port2_enabled', fallback=True)
+#l2_port2_enabled = safeparser.getboolean('DEFAULT', 'l2_port2_enabled', fallback=True)
+l2_port2_enabled = True
 l2_port2 = safeparser.get('DEFAULT', 'l2_port2', fallback='eth2')
 l2_mask2 = safeparser.get('DEFAULT', 'l2_mask2', fallback='255.255.255.0')
 l2_bridge_port2 = safeparser.get('DEFAULT', 'l2_bridge_port2', fallback='br-eth2')
@@ -135,6 +139,7 @@ guest_passwd = safeparser.get('DEFAULT', 'guest_password', fallback='guest')
 ospassword = safeparser.get('DEFAULT', 'password', fallback='password')
 mypassword = safeparser.get('DEFAULT', 'mysql_password', fallback='password')
 ks_token = safeparser.get('DEFAULT', 'keystone_service_token', fallback='fkgjhsdflkjh')
+keystone_auth_version = safeparser.get('DEFAULT', 'keystone_auth_version', fallback='v2')
 
 ganglia = safeparser.getboolean('DEFAULT', 'ganglia', fallback=False)
 
@@ -166,15 +171,26 @@ vagrant_calls = safeparser.getboolean('DEFAULT', 'vagrant', fallback=False)
 vagrant_pre_fourth = safeparser.getboolean('DEFAULT', 'vagrant_before_fourth', fallback=False)
 vagrant_keys = safeparser.getboolean('DEFAULT', 'vagrant_keys', fallback=False)
 cml = safeparser.getboolean('DEFAULT', 'cml', fallback=False)
+internet = safeparser.getboolean('DEFAULT', 'internet_access', fallback=True)
 
 
 #Operational Section
 image_set = safeparser.get('DEFAULT', 'image_set', fallback='internal')
 salt = safeparser.getboolean('DEFAULT', 'salt', fallback=True)
-salt_master = safeparser.get('DEFAULT', 'salt_master', fallback='')
+salt_master = safeparser.get('DEFAULT', 'salt_master', fallback='us-1.virl.info,us-2.virl.info,us-3.virl.info,us-4.virl.info')
+salt_master_tcp = safeparser.get('DEFAULT', 'salt_master_tcp', fallback='us-1-tcp.virl.info,us-2-tcp.virl.info,us-3-tcp.virl.info,us-4-tcp.virl.info')
 salt_id = safeparser.get('DEFAULT', 'salt_id', fallback='virl')
 salt_domain = safeparser.get('DEFAULT', 'salt_domain', fallback='virl.info')
+multi_salt_key = safeparser.getint('DEFAULT', 'multi_salt_key', fallback=1)
+salt_id2 = safeparser.get('DEFAULT', 'salt_id2', fallback='virl')
+salt_domain2 = safeparser.get('DEFAULT', 'salt_domain2', fallback='virl.info')
+salt_id3 = safeparser.get('DEFAULT', 'salt_id3', fallback='virl')
+salt_domain3 = safeparser.get('DEFAULT', 'salt_domain3', fallback='virl.info')
+salt_id4 = safeparser.get('DEFAULT', 'salt_id4', fallback='virl')
+salt_domain4 = safeparser.get('DEFAULT', 'salt_domain4', fallback='virl.info')
 salt_env = safeparser.get('DEFAULT', 'salt_env', fallback='none')
+salt_tcp = safeparser.getboolean('DEFAULT', 'salt_transport_tcp', fallback=False)
+
 virl_type = safeparser.get('DEFAULT', 'Is_this_a_stable_or_testing_server', fallback='stable')
 cisco_internal = safeparser.getboolean('DEFAULT', 'inside_cisco', fallback=False)
 onedev = safeparser.getboolean('DEFAULT', 'onedev', fallback=False)
@@ -187,8 +203,9 @@ download_no_proxy = safeparser.get('DEFAULT', 'download_no_proxy', fallback='')
 download_proxy_user = safeparser.get('DEFAULT', 'download_proxy_user', fallback='')
 
 #Testing Section
-icehouse = safeparser.getboolean('DEFAULT', 'icehouse', fallback=True)
-kilo = safeparser.getboolean('DEFAULT', 'kilo', fallback=False)
+icehouse = safeparser.getboolean('DEFAULT', 'icehouse', fallback=False)
+kilo = safeparser.getboolean('DEFAULT', 'kilo', fallback=True)
+mitaka = safeparser.getboolean('DEFAULT', 'mitaka', fallback=False)
 
 testingank = safeparser.getboolean('DEFAULT', 'testing_ank', fallback=False)
 testingstd = safeparser.getboolean('DEFAULT', 'testing_std', fallback=False)
@@ -241,13 +258,23 @@ host_sls_values = [hostname,fqdn,public_port,dhcp_public,public_ip,public_gatewa
             dns2,internalnet_port,internalnet_netmask,l3_mask,l2_mask2,l2_mask,dummy_int,
             jumbo_frames]
 
+if mitaka:
+    keystone_auth_url = 'http://127.0.0.1:5000/v3'
+    keystone_client = 'openstack'
+    keystone_project_list = 'project list'
+    keystone_auth_version = 'v3'
+else:
+    keystone_client = 'keystone'
+    keystone_auth_url = 'http://127.0.0.1:5000/v2.0'
+    keystone_project_list = 'tenant-list'
+    keystone_auth_version = 'v2.0'
 
 qadmincall = ['/usr/bin/neutron', '--os-tenant-name', 'admin', '--os-username', 'admin', '--os-password',
-              '{0}'.format(ospassword), '--os-auth-url=http://localhost:5000/v2.0']
+              '{0}'.format(ospassword), '--os-auth-url=http://localhost:5000/{0}'.format(keystone_auth_version)]
 nadmincall = ['/usr/bin/nova', '--os-tenant-name', 'admin', '--os-username', 'admin', '--os-password',
-              '{0}'.format(ospassword), '--os-auth-url=http://localhost:5000/v2.0']
+              '{0}'.format(ospassword), '--os-auth-url=http://localhost:5000/{0}'.format(keystone_auth_version)]
 kcall = ['/usr/bin/keystone', '--os-tenant-name', 'admin', '--os-username', 'admin', '--os-password',
-         '{0}'.format(ospassword), '--os-auth-url=http://localhost:5000/v2.0']
+         '{0}'.format(ospassword), '--os-auth-url=http://localhost:5000/{0}'.format(keystone_auth_version)]
 cpstr = 'sudo -S cp -f "%(from)s" "%(to)s"'
 lnstr = 'sudo -S ln -sf "%(orig)s" "%(link)s"'
 
@@ -276,6 +303,107 @@ def building_salt_extra():
     with open(("/tmp/extra"), "w") as extra:
         if not masterless or vagrant_pre_fourth:
             if len(salt_master.split(',')) >= 2:
+                if salt_tcp:
+                  extra.write("""master: [{salt_master}]\n""".format(salt_master=salt_master_tcp))
+                else:
+                  extra.write("""master: [{salt_master}]\n""".format(salt_master=salt_master))
+                extra.write("""master_type: failover \n""")
+                extra.write("""master_shuffle: True \n""")
+                extra.write("""random_master: True \n""")
+                extra.write("""auth_tries: 1 \n""")
+                extra.write("""auth_timeout: 15 \n""")
+                extra.write("""master_alive_interval: 180 \n""")
+                extra.write("""retry_dns: 0 \n""")
+            else:
+                if salt_tcp:
+                  extra.write("""master: {salt_master}\n""".format(salt_master=salt_master_tcp))
+                else:
+                  extra.write("""master: {salt_master}\n""".format(salt_master=salt_master))
+            if controller:
+              extra.write("""verify_master_pubkey_sign: True \n""")
+              extra.write("""always_verify_signature: True \n""")
+            if internet:
+                if path.exists('/usr/local/lib/python2.7/dist-packages/pygit2'):
+                    extra.write("""gitfs_provider: pygit2
+
+fileserver_backend:
+  - git
+  - roots
+
+
+gitfs_remotes:
+  - https://github.com/Snergster/virl-salt.git\n""")
+                elif path.exists('/usr/local/lib/python2.7/dist-packages/dulwich'):
+                    extra.write("""gitfs_provider: dulwich
+
+fileserver_backend:
+  - git
+  - roots
+
+
+gitfs_remotes:
+  - https://github.com/Snergster/virl-salt.git\n""")
+        else:
+            if cml:
+                if internet:
+                    if path.exists('/usr/local/lib/python2.7/dist-packages/pygit2'):
+                        extra.write("""gitfs_provider: pygit2\n""")
+                        extra.write("""file_client: local
+
+fileserver_backend:
+  - git
+  - roots
+
+
+gitfs_remotes:
+  - https://github.com/Snergster/virl-salt.git\n""")
+                else:
+                    extra.write("""file_client: local
+
+fileserver_backend:
+  - roots\n""")
+            elif not internet:
+                extra.write("""file_client: local
+
+fileserver_backend:
+  - roots\n""")
+
+            elif path.exists('/usr/local/lib/python2.7/dist-packages/pygit2'):
+                extra.write("""gitfs_provider: pygit2\n""")
+                extra.write("""file_client: local
+
+fileserver_backend:
+  - git
+  - roots
+
+gitfs_remotes:
+  - https://github.com/Snergster/virl-salt.git\n""")
+            elif path.exists('/usr/local/lib/python2.7/dist-packages/dulwich'):
+                extra.write("""gitfs_provider: dulwich\n""")
+                extra.write("""file_client: local
+
+fileserver_backend:
+  - git
+  - roots
+
+gitfs_remotes:
+  - https://github.com/Snergster/virl-salt.git\n""")
+        extra.write("""log_level: quiet \n""")
+        extra.write("""id: '{salt_id}'\n""".format(salt_id=salt_id))
+        extra.write("""append_domain: {salt_domain}\n""".format(salt_domain=salt_domain))
+    subprocess.call(['sudo', 'mv', '-f', ('/tmp/extra'), '/etc/salt/minion.d/extra.conf'])
+    if salt_tcp:
+        with open(("/tmp/tcp.conf"), "w") as stcp:
+            stcp.write("""transport: tcp\n""")
+            stcp.write("""hash_type: sha256\n""")
+        subprocess.call(['sudo', 'mv', '-f', ('/tmp/tcp.conf'), '/etc/salt/minion.d/tcp.conf'])
+    else:
+        subprocess.call(['sudo', 'rm', '-f', '/etc/salt/minion.d/tcp.conf'])
+
+def building_salt_extras(count):
+    with open(("/tmp/extra{count}".format(count=count)), "w") as extra:
+        if not masterless or vagrant_pre_fourth:
+            if len(salt_master.split(',')) >= 2:
                 extra.write("""master: [{salt_master}]\n""".format(salt_master=salt_master))
                 extra.write("""master_type: failover \n""")
                 extra.write("""master_shuffle: True \n""")
@@ -286,7 +414,6 @@ def building_salt_extra():
                 extra.write("""retry_dns: 0 \n""")
             else:
                 extra.write("""master: {salt_master}\n""".format(salt_master=salt_master))
-            extra.write("""state_output: mixed \n""")
             if controller:
               extra.write("""verify_master_pubkey_sign: True \n""")
               extra.write("""always_verify_signature: True \n""")
@@ -299,8 +426,6 @@ fileserver_backend:
   - git
   - roots
 
-state_output: mixed
-
 gitfs_remotes:
   - https://github.com/Snergster/virl-salt.git\n""")
             elif path.exists('/usr/local/lib/python2.7/dist-packages/dulwich'):
@@ -311,8 +436,6 @@ fileserver_backend:
   - git
   - roots
 
-state_output: mixed
-
 gitfs_remotes:
   - https://github.com/Snergster/virl-salt.git\n""")
             else:
@@ -321,43 +444,57 @@ gitfs_remotes:
 fileserver_backend:
   - roots\n""")
         extra.write("""log_level: quiet \n""")
-        extra.write("""id: '{salt_id}'\n""".format(salt_id=salt_id))
-        extra.write("""append_domain: {salt_domain}\n""".format(salt_domain=salt_domain))
-    subprocess.call(['sudo', 'mv', '-f', ('/tmp/extra'), '/etc/salt/minion.d/extra.conf'])
+        extra.write("""hash_type: md5 \n""")
+        if count == 2:
+          extra.write("""id: '{salt_id}'\n""".format(salt_id=salt_id2))
+          extra.write("""append_domain: {salt_domain}\n""".format(salt_domain=salt_domain2))
+        elif count == 3:
+          extra.write("""id: '{salt_id}'\n""".format(salt_id=salt_id3))
+          extra.write("""append_domain: {salt_domain}\n""".format(salt_domain=salt_domain3))
+        elif count == 4:
+          extra.write("""id: '{salt_id}'\n""".format(salt_id=salt_id4))
+          extra.write("""append_domain: {salt_domain}\n""".format(salt_domain=salt_domain4))          
+        extra.write("""pki_dir: /etc/salt{count}/pki/minion \n""".format(count=count))
+    subprocess.call(['sudo', 'mkdir', '-p', '/etc/salt{count}/pki/minion'.format(count=count)])
+    subprocess.call(['sudo', 'mkdir', '-p', '/etc/salt{count}/minion.d'.format(count=count)])
+    subprocess.call(['sudo', 'mv', '-f', ('/tmp/extra{count}'.format(count=count)), '/etc/salt{count}/minion.d/extra.conf'.format(count=count)])
+    subprocess.call(['sudo', 'cp', '-f', '/etc/salt/pki/minion/master_sign.pub', '/etc/salt{count}/pki/minion/master_sign.pub'.format(count=count)])
+    subprocess.call(['sudo', 'cp', '-f', '/etc/salt/minion', '/etc/salt{count}/minion'.format(count=count)])
 
 def building_salt_all():
     if not path.exists('/etc/salt/virl'):
         subprocess.call(['sudo', 'mkdir', '-p', '/etc/salt/virl'])
     if path.exists('/usr/bin/keystone-manage') or path.exists('/usr/bin/neutron-server'):
-        admin_tenid = (subprocess.check_output(['keystone --os-tenant-name admin --os-username admin'
-                                            ' --os-password {ospassword} --os-auth-url=http://localhost:5000/v2.0'
-                                            ' tenant-list | grep -w "admin" | cut -d "|" -f2'
-                                           .format(ospassword=ospassword)], shell=True)[1:33])
-        service_tenid = (subprocess.check_output(['/usr/bin/keystone --os-tenant-name admin --os-username admin'
-                                            ' --os-password {ospassword} --os-auth-url=http://localhost:5000/v2.0'
-                                            ' tenant-list | grep -w "service" | cut -d "|" -f2'
-                                           .format(ospassword=ospassword)], shell=True)[1:33])
+        admin_tenid = (subprocess.check_output(['{keystone_client} --os-tenant-name admin --os-username admin'
+                                            ' --os-password {ospassword} --os-auth-url={auth_url}'
+                                            ' {project} | grep -w "admin" | cut -d "|" -f2'
+                                           .format(ospassword=ospassword,auth_url=keystone_auth_url,keystone_client=keystone_client,project=keystone_project_list)], shell=True)[1:33])
+        service_tenid = (subprocess.check_output(['{keystone_client} --os-tenant-name admin --os-username admin'
+                                            ' --os-password {ospassword} --os-auth-url={auth_url}'
+                                            ' {project} | grep -w "service" | cut -d "|" -f2'
+                                           .format(ospassword=ospassword,auth_url=keystone_auth_url,keystone_client=keystone_client,project=keystone_project_list)], shell=True)[1:33])
         neutron_extnet_id = (subprocess.check_output(['neutron --os-tenant-name admin --os-username admin'
-                                            ' --os-password {ospassword} --os-auth-url=http://localhost:5000/v2.0'
+                                            ' --os-password {ospassword} --os-auth-url={auth_url}'
                                             ' net-list | grep -w "ext-net" | cut -d "|" -f2'
-                                           .format(ospassword=ospassword)], shell=True)[1:33])
+                                           .format(ospassword=ospassword,auth_url=keystone_auth_url)], shell=True)[1:33])
     else:
         admin_tenid = ''
         service_tenid = ''
     if path.exists('/usr/bin/neutron-server'):
         neutron_extnet_id = (subprocess.check_output(['neutron --os-tenant-name admin --os-username admin'
-                                            ' --os-password {ospassword} --os-auth-url=http://localhost:5000/v2.0'
+                                            ' --os-password {ospassword} --os-auth-url={auth_url}'
                                             ' net-list | grep -w "ext-net" | cut -d "|" -f2'
-                                           .format(ospassword=ospassword)], shell=True)[1:33])
+                                           .format(ospassword=ospassword,auth_url=keystone_auth_url)], shell=True)[1:33])
     else:
         neutron_extnet_id = ''
     building_salt_extra()
+
     with open(("/tmp/openstack"), "w") as openstack:
         openstack.write("""keystone.user: admin
 keystone.password: {ospassword}
 keystone.tenant: admin
 keystone.tenant_id: {tenid}
-keystone.auth_url: 'http://127.0.0.1:5000/v2.0/'
+keystone.auth_url: {auth_url}/
 keystone.token: {kstoken}
 keystone.region_name: 'RegionOne'
 keystone.service_type: 'network'
@@ -372,7 +509,7 @@ virl:
   keystone.tenant_id: {tenid}
   keystone.auth_url: 'http://127.0.0.1:5000/v2.0/'
   keystone.region_name: 'RegionOne'
-  keystone.service_type: 'network'\n""".format(ospassword=ospassword, kstoken=ks_token, tenid=admin_tenid, mypass=mypassword))
+  keystone.service_type: 'network'\n""".format(ospassword=ospassword, kstoken=ks_token, tenid=admin_tenid, mypass=mypassword, auth_url=keystone_auth_url))
     if path.exists('/usr/bin/salt-call'):
         with open(("/tmp/foo"), "w") as salt_grain:
             salt_grain.write("""{""")
@@ -393,6 +530,9 @@ virl:
                 salt_grain.write("""  'uwm_url': 'http://{0}:{1}',""".format(public_ip,uwm_port))
             salt_grain.write(""" 'neutron_extnet_id': '{neutid}',""".format(neutid=neutron_extnet_id))
             salt_grain.write(""" 'service_id': '{serviceid}',""".format(serviceid=service_tenid))
+            salt_grain.write(""" 'OS_AUTH_URL': '{auth_url}',""".format(auth_url=keystone_auth_url))
+            if mitaka:
+                salt_grain.write("""  'kilo': False ,""")
             salt_grain.write(""" 'admin_id': '{adminid}'""".format(adminid=admin_tenid))
             salt_grain.write("""}""")
         with open(("/tmp/foo"), "r") as salt_grain_read:
@@ -407,7 +547,9 @@ virl:
                 grains.write("""  cinder_enabled: False\n""")
             if not uwm_port == '14000':
                 grains.write("""  uwm_url: http://{0}:{1}\n""".format(public_ip,uwm_port))
-
+            if mitaka:
+                grains.write("""  kilo: False\n""")
+            grains.write("""  OS_AUTH_URL: {1}\n""".format(keystone_auth_url))
 
             for name, value in safeparser.items('DEFAULT'):
                 grains.write("""  {name}: {value}\n""".format(name=name, value=value))
@@ -424,7 +566,7 @@ def create_basic_networks():
     user = 'admin'
     password = ospassword
     qcall = ['/usr/bin/neutron', '--os-tenant-name', '{0}'.format(user), '--os-username', '{0}'.format(user),
-             '--os-password', '{0}'.format(password), '--os-auth-url=http://localhost:5000/v2.0']
+             '--os-password', '{0}'.format(password), '--os-auth-url=http://localhost:5000/{0}'.format(keystone_auth_version)]
     subprocess.call(qcall + ['quota-update', '--router', '-1'])
     try:
         if not varg['iso']:
@@ -546,7 +688,7 @@ def set_vnc_password(vnc_password):
 
 def Net_Creator(user, password):
     qcall = ['neutron', '--os-tenant-name', '{0}'.format(user), '--os-username', '{0}'.format(user), '--os-password',
-             '{0}'.format(password), '--os-auth-url=http://localhost:5000/v2.0']
+             '{0}'.format(password), '--os-auth-url=http://localhost:5000/{0}'.format(keystone_auth_version)]
     try:
         if user not in subprocess.check_output(qadmincall + ['net-list']) and not user == 'flat':
             subprocess.call(qcall + ['net-create', '{0}'.format(user)])
@@ -591,9 +733,124 @@ def call_salt_quiet(slsfile):
         subprocess.call(['sudo', 'salt-call', '--state-output=terse', '-l', 'quiet', 'state.sls', slsfile])
     sleep(5)
 
+
+def get_grains(variable_name):
+    proc = subprocess.Popen(['sudo', 'salt-call', '--out', 'json', 'grains.get', variable_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    output, error = proc.communicate()
+    if error:
+        print('Unable to load %s from grains:' % variable_name)
+        print(error)
+    output = json.loads(output)
+
+    return output.get('local')
+
+
+def get_pillar(variable_name):
+    proc = subprocess.Popen(['sudo', 'salt-call', '--out', 'json', 'pillar.get', variable_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    output, error = proc.communicate()
+    if error:
+        print('Unable to load %s from pillar:' % variable_name)
+        print(error)
+    output = json.loads(output)
+
+    return output.get('local')
+
+
+def parse_version_info(version_str):
+    """Parse version info from string, e.g. "0.1.2.3" ~> (0, 1, 2, 3)"""
+    version_str = version_str.strip()
+    version_info = []
+    for part in re.split(r'[\.-]', version_str):
+        try:
+            part = int(part)
+            version_info.append(part)
+        except ValueError:
+            pass
+    return tuple(version_info)
+
+
+def check_versions(new_version, old_version):
+    new_versions = parse_version_info(new_version)
+    old_versions = parse_version_info(old_version)
+    max_versions = max(len(new_versions), len(old_versions))
+    for id in range(max_versions):
+        new_ver = new_versions[id] if id < len(new_versions) else 0
+        old_ver = old_versions[id] if id < len(old_versions) else 0
+        if new_ver > old_ver:
+            return True
+        if new_ver < old_ver:
+            return False
+    return None
+
+
+def determine_upgrade_type():
+    # major.minor.maintenance
+    virl_current = get_grains('virl_release')
+    if virl_current:
+        virl_available = get_pillar('version:virl')
+        if not virl_available:
+            return None
+
+        check_result = check_versions(virl_available, virl_current)
+
+        if check_result is None:
+            return 'reinstall'
+
+        if not check_result:
+            return 'downgrade'
+
+        maj1 = re.match("([0-9]+)\.", virl_current)
+        maj2 = re.match("([0-9]+)\.", virl_available)
+        if maj1.group(1) != maj2.group(1):
+            # not upgradable
+            return 'major'
+
+        min1 = re.match("[0-9]+\.([0-9]+)\.", virl_current)
+        min2 = re.match("[0-9]+\.([0-9]+)\.", virl_available)
+        if min1.group(1) != min2.group(1):
+            return 'minor'
+
+        # not identical version and not major version change
+        return 'maintenance'
+
+    # no current version available, disallow upgrade
+    return None
+
 if __name__ == "__main__":
 
     varg = docopt(__doc__, version='vinstall .8')
+
+    if varg['upgrade']:
+        upgrade_type = determine_upgrade_type()
+
+        if upgrade_type is None:
+            virl_available = get_pillar('version:virl')
+            print(
+                'We are sorry, but in-place upgrades from/to an unknown '
+                'release are not supported. Please back up any data you wish '
+                'to keep (e.g. custom images, subtypes, LXC templates, '
+                'projects and users, the /etc/virl.ini initialization file, '
+                'topology files created in VMMaestro installed on the host). '
+                'You will need to download and install %s release from '
+                'scratch.' % virl_available
+            )
+            sys.exit(1)
+
+        if upgrade_type == 'major' or upgrade_type == 'downgrade':
+            virl_current = get_grains('virl_release')
+            virl_available = get_pillar('version:virl')
+            print(
+                'We are sorry, but in-place upgrades from the current release '
+                '%(current)s to release %(available)s are not supported '
+                'anymore. Please back up any data you wish to keep (e.g. '
+                'custom images, subtypes, LXC templates, projects and users, '
+                'the /etc/virl.ini initialization file, topology files '
+                'created in VMMaestro installed on the host). You will need '
+                'to download and install %(available)s release from scratch.'
+                % {'current': virl_current, 'available': virl_available}
+            )
+            sys.exit(1)
+
     if varg['zero']:
         if proxy:
             subprocess.call(['sudo', 'env', 'https_proxy={0}'.format(http_proxy),
@@ -737,6 +994,7 @@ if __name__ == "__main__":
         call_salt('common.pip')
         call_salt('common.salt-minion')
         building_salt_all()
+        subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.sls_id', 'vhostloop', 'virl.hostname'])
         subprocess.call(['sudo', 'salt-call', '-l', 'quiet', 'state.highstate'])
         call_salt('common.distuptodate')
         #call_salt('virl.network.int')
@@ -750,6 +1008,7 @@ if __name__ == "__main__":
         call_salt('openstack.restart')
         call_salt('virl.std')
         call_salt('virl.ank')
+        call_salt('virl.docker')
 
         if masterless:
             subprocess.call(['sudo', 'salt-call', '--local', '-l', 'quiet', 'virl_core.project_absent', 'name=guest'])
@@ -857,13 +1116,17 @@ if __name__ == "__main__":
         call_salt('virl.host')
     if varg['routervms']:
         call_salt_quiet('virl.routervms')
-    if varg['vmm'] or varg['upgrade']:
+    if varg['vmm']:
         call_salt_quiet('virl.vmm.download')
         if desktop:
           call_salt_quiet('virl.vmm.local')
 
     if varg['salt']:
         building_salt_all()
+        if multi_salt_key:
+          while multi_salt_key > 1:
+            building_salt_extras(multi_salt_key)
+            multi_salt_key = multi_salt_key -1
         if virl_cluster and controller:
             call_salt_quiet('common.salt-master.cluster-config')
     if varg['users']:
